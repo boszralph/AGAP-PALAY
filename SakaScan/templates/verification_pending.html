@@ -1,0 +1,71 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card text-center shadow-sm border-0">
+                <div class="card-body py-5">
+                    <!-- Icon -->
+                    <div class="mb-4">
+                        <i class="fas fa-envelope fa-4x text-success"></i>
+                    </div>
+
+                    <!-- Title -->
+                    <h3 class="mb-3">{{ _('Check Your Email') }}</h3>
+
+                    <!-- Message -->
+                    <p class="text-muted mb-4">
+                        {{ _('We sent a verification link to your email address.') }}
+                        <br>
+                        {{ _('Please click the link to activate your account.') }}
+                    </p>
+
+                    <!-- ===== RESEND SECTION – ALWAYS VISIBLE & PROMINENT ===== -->
+                    <div class="resend-section py-3 my-3 border-top border-bottom border-light">
+                        <p class="text-muted mb-2">
+                            <i class="fas fa-info-circle me-1"></i>
+                            {{ _('Didn\'t receive the email?') }}
+                        </p>
+                        <a href="{{ url_for('resend_verification') }}" class="btn btn-success btn-lg px-4">
+                            <i class="fas fa-redo me-2"></i>{{ _('Resend verification email') }}
+                        </a>
+                        <p class="text-muted small mt-2">
+                            {{ _('Check your spam folder or try again.') }}
+                        </p>
+                    </div>
+
+                    <!-- Back to Login -->
+                    <a href="{{ url_for('login') }}" class="btn btn-outline-secondary mt-3">
+                        <i class="fas fa-arrow-left me-2"></i>{{ _('Back to Login') }}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .resend-section {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 20px !important;
+    }
+
+    body.dark-mode .resend-section {
+        background-color: #2a2a2a;
+        border-color: #444 !important;
+    }
+
+    .resend-section .btn-success {
+        background-color: #2e7d32;
+        border-color: #2e7d32;
+        font-weight: 600;
+    }
+
+        .resend-section .btn-success:hover {
+            background-color: #1b5e20;
+            border-color: #1b5e20;
+        }
+</style>
+{% endblock %}

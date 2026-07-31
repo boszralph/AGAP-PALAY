@@ -1,0 +1,615 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-4">
+
+    <!-- ============================================================
+    PAGE HEADER
+    ============================================================ -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <h1 class="page-title">
+            <i class="fas fa-cloud-sun me-2 text-primary"></i>{{ 'Weather for Your Farm' | translate }}
+        </h1>
+        <span class="text-muted d-none d-sm-inline">{{ 'Real‑time conditions and forecast' | translate }}</span>
+    </div>
+
+    <!-- ============================================================
+    MAIN WEATHER CARD + ADVISORY SIDE‑BY‑SIDE
+    ============================================================ -->
+    <div class="row g-4 mb-5">
+        <!-- Left: Weather Main Card (gradient) -->
+        <div class="col-lg-6">
+            <div class="weather-main-card">
+                <div class="weather-main-card-header">
+                    <div class="weather-location">
+                        <i class="fas fa-map-pin me-2"></i>
+                        <span>{{ display_location }}</span>
+                        <button id="get-location-btn" class="btn btn-sm btn-light ms-2" title="{{ 'Use my current location' | translate }}">
+                            <i class="fas fa-crosshairs"></i>
+                        </button>
+                    </div>
+                    <div class="weather-condition-icon">
+                        <i class="fas fa-{{ condition_icon or 'cloud-sun' }} fa-2x"></i>
+                    </div>
+                </div>
+                <div class="weather-main-card-body">
+                    <div class="weather-temp">{{ temp }}°C</div>
+                    <div class="weather-condition">{{ condition }}</div>
+                    <div class="weather-details">
+                        <div class="weather-detail-item">
+                            <i class="fas fa-tint"></i>
+                            <span>{{ 'Humidity' | translate }}: {{ humidity }}%</span>
+                        </div>
+                        <div class="weather-detail-item">
+                            <i class="fas fa-cloud-rain"></i>
+                            <span>{{ 'Rain' | translate }}: {{ rainfall }} mm</span>
+                        </div>
+                    </div>
+                    <div class="weather-risk">
+                        <span class="weather-risk-label">{{ 'Disease Risk' | translate }}:</span>
+                        {% if risk == 'high' %}
+                        <span class="badge bg-danger">{{ 'High – be careful' | translate }}</span>
+                        {% elif risk == 'moderate' %}
+                        <span class="badge bg-warning text-dark">{{ 'Moderate – watch out' | translate }}</span>
+                        {% else %}
+                        <span class="badge bg-success">{{ 'Low – safe' | translate }}</span>
+                        {% endif %}
+                    </div>
+                    <p class="weather-note small">
+                        <i class="fas fa-info-circle me-1"></i>
+                        {{ 'High humidity (>80%) can cause fungal diseases.' | translate }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Advisory Card -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-transparent border-bottom">
+                    <i class="fas fa-info-circle me-2 text-primary"></i>{{ 'What this means for your rice' | translate }}
+                </div>
+                <div class="card-body d-flex flex-column justify-content-center">
+                    <ul class="list-unstyled weather-tips">
+                        <li>
+                            <i class="fas fa-{{ 'check-circle text-success' if humidity < 60 else 'exclamation-triangle text-warning' }} me-2"></i>
+                            {% if humidity < 60 %}
+                            {{ 'Dry weather – good for spraying' | translate }}
+                            {% else %}
+                            {{ 'Wet weather – delay spraying' | translate }}
+                            {% endif %}
+                        </li>
+                        <li>
+                            <i class="fas fa-{{ 'check-circle text-success' if risk == 'low' else 'exclamation-triangle text-warning' }} me-2"></i>
+                            {% if risk != 'low' %}
+                            {{ 'Check your fields for signs of disease' | translate }}
+                            {% else %}
+                            {{ 'Conditions are safe today' | translate }}
+                            {% endif %}
+                        </li>
+                        <li>
+                            <i class="fas fa-calendar-alt text-primary me-2"></i>
+                            {{ 'Plan field activities accordingly.' | translate }}
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    6‑DAY FORECAST (updated from 5 to 6)
+    ============================================================ -->
+    <h4 class="mb-3 forecast-title">
+        <i class="fas fa-calendar-week me-2 text-primary"></i>{{ 'Next 5 Days' | translate }}
+    </h4>
+    <div class="row g-3 g-md-4">
+        {% for day in forecast %}
+        <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+            <div class="card shadow-sm border-0 forecast-card text-center h-100">
+                <div class="card-header bg-transparent border-bottom forecast-card-header">
+                    {{ day.day }}
+                </div>
+                <div class="card-body forecast-card-body">
+                    <img src="http://openweathermap.org/img/wn/{{ day.icon }}@2x.png" alt="{{ day.weather }}" class="forecast-icon">
+                    <p class="forecast-weather">{{ day.weather }}</p>
+                    <div class="forecast-temps">
+                        <span class="forecast-max">{{ "%.0f"|format(day.max_temp) }}°</span>
+                        <span class="forecast-min">{{ "%.0f"|format(day.min_temp) }}°</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+
+<!-- ============================================================
+JAVASCRIPT – location detection
+============================================================ -->
+<script>
+document.getElementById('get-location-btn').addEventListener('click', function() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                window.location.href = "{{ url_for('weather') }}?lat=" + lat + "&lon=" + lon;
+            },
+            function(error) {
+                alert("{{ 'Unable to get your location. Please enable location services.' | translate }}");
+            }
+        );
+    } else {
+        alert("{{ 'Geolocation is not supported by your browser.' | translate }}");
+    }
+});
+</script>
+
+<!-- ============================================================
+STYLES – fully consistent with admin & user dashboards
+============================================================ -->
+<style>
+    /* ── page title ── */
+    .page-title {
+        font-family: var(--font-heading, 'Inter', system-ui, sans-serif);
+        font-weight: 700;
+        font-size: 1.5rem;
+        letter-spacing: -0.02em;
+        color: var(--text, #0d1117);
+        margin: 0;
+    }
+
+    /* ── main weather card (gradient) ── */
+    .weather-main-card {
+        border-radius: var(--radius-lg, 16px);
+        background: var(--gradient-primary, linear-gradient(135deg, #1e7a3a, #2e7d32));
+        color: white;
+        box-shadow: var(--shadow-md, 0 10px 25px -5px rgba(0,0,0,0.08));
+        overflow: hidden;
+        height: 100%;
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease;
+    }
+
+        .weather-main-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg, 0 20px 40px -12px rgba(0,0,0,0.15));
+        }
+
+    .weather-main-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: var(--space-4, 1rem) var(--space-5, 1.5rem);
+        background: rgba(255, 255, 255, 0.06);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .weather-location {
+        font-weight: 600;
+        font-size: 1.1rem;
+        font-family: var(--font-heading, 'Inter', sans-serif);
+        letter-spacing: -0.3px;
+        display: flex;
+        align-items: center;
+        gap: var(--space-2, 0.5rem);
+        flex-wrap: wrap;
+    }
+
+        .weather-location .btn-light {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 0.2rem 0.6rem;
+            border-radius: 9999px;
+            font-size: 0.7rem;
+            transition: background 0.15s ease;
+        }
+
+            .weather-location .btn-light:hover {
+                background: rgba(255,255,255,0.35);
+                color: white;
+            }
+
+    .weather-condition-icon {
+        opacity: 0.9;
+    }
+
+    .weather-main-card-body {
+        padding: var(--space-5, 1.5rem);
+    }
+
+    .weather-temp {
+        font-size: 3.5rem;
+        font-weight: 800;
+        font-family: var(--font-heading, 'Inter', sans-serif);
+        line-height: 1.1;
+        letter-spacing: -0.03em;
+        margin-bottom: var(--space-1, 0.25rem);
+    }
+
+    .weather-condition {
+        font-size: 1.1rem;
+        font-weight: 500;
+        opacity: 0.9;
+        margin-bottom: var(--space-4, 1rem);
+    }
+
+    .weather-details {
+        display: flex;
+        gap: var(--space-4, 1rem);
+        margin-bottom: var(--space-4, 1rem);
+        flex-wrap: wrap;
+    }
+
+    .weather-detail-item {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2, 0.5rem);
+        font-size: 0.95rem;
+        background: rgba(255, 255, 255, 0.12);
+        padding: var(--space-1, 0.25rem) var(--space-3, 0.75rem);
+        border-radius: var(--radius-sm, 8px);
+        backdrop-filter: blur(4px);
+    }
+
+    .weather-risk {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2, 0.5rem);
+        margin-bottom: var(--space-3, 0.75rem);
+        font-size: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .weather-risk-label {
+        font-weight: 600;
+    }
+
+    .weather-note {
+        opacity: 0.85;
+        font-size: 0.85rem;
+        margin-bottom: 0;
+    }
+
+    /* ── badges ── */
+    .badge {
+        font-weight: 600;
+        font-size: 0.75rem;
+        padding: var(--space-1, 0.25rem) var(--space-3, 0.75rem);
+        border-radius: 9999px;
+        text-transform: capitalize;
+    }
+
+        .badge.bg-success {
+            background: #2ea043 !important;
+            color: white;
+        }
+
+        .badge.bg-warning {
+            background: #d29922 !important;
+            color: #0d1117;
+        }
+
+        .badge.bg-danger {
+            background: #f85149 !important;
+            color: white;
+        }
+
+    /* ── advisory card ── */
+    .weather-tips {
+        margin: 0;
+        padding: 0;
+    }
+
+        .weather-tips li {
+            padding: var(--space-2, 0.5rem) 0;
+            border-bottom: 1px solid var(--border-light, #f0f2f5);
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+        }
+
+            .weather-tips li:last-child {
+                border-bottom: none;
+            }
+
+        .weather-tips .text-success {
+            color: #2ea043 !important;
+        }
+
+        .weather-tips .text-warning {
+            color: #d29922 !important;
+        }
+
+        .weather-tips .text-primary {
+            color: var(--primary, #1e7a3a) !important;
+        }
+
+    /* ── forecast cards ── */
+    .forecast-title {
+        font-family: var(--font-heading, 'Inter', sans-serif);
+        font-weight: 700;
+        color: var(--text, #0d1117);
+    }
+
+    .forecast-card {
+        border-radius: var(--radius-lg, 16px);
+        border: 1px solid var(--border, #e9edf2);
+        background: var(--card-bg, #ffffff);
+        box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.06));
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
+    }
+
+        .forecast-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-md, 0 10px 25px -5px rgba(0,0,0,0.08));
+            border-color: var(--primary, #1e7a3a);
+        }
+
+    .forecast-card-header {
+        padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--text-secondary, #57606a);
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        text-align: center;
+        border-bottom: 1px solid var(--border, #e9edf2);
+    }
+
+    .forecast-card-body {
+        padding: var(--space-3, 0.75rem) var(--space-2, 0.5rem);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-1, 0.25rem);
+    }
+
+    .forecast-icon {
+        width: 60px;
+        height: 60px;
+        object-fit: contain;
+    }
+
+    .forecast-weather {
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: var(--text-secondary, #57606a);
+        text-align: center;
+        margin: 0;
+        line-height: 1.2;
+        min-height: 2.4rem;
+    }
+
+    .forecast-temps {
+        display: flex;
+        gap: var(--space-3, 0.75rem);
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin-top: var(--space-1, 0.25rem);
+    }
+
+    .forecast-max {
+        color: var(--text, #0d1117);
+    }
+
+    .forecast-min {
+        color: var(--text-muted, #8b949e);
+    }
+
+    /* ================================================================
+       DARK MODE – fully consistent
+       ================================================================ */
+    body.dark-mode .weather-main-card {
+        background: var(--gradient-primary, linear-gradient(135deg, #1e7a3a, #2e7d32));
+    }
+
+        body.dark-mode .weather-main-card .weather-location,
+        body.dark-mode .weather-main-card .weather-temp,
+        body.dark-mode .weather-main-card .weather-condition,
+        body.dark-mode .weather-main-card .weather-detail-item,
+        body.dark-mode .weather-main-card .weather-risk-label,
+        body.dark-mode .weather-main-card .weather-note {
+            color: #ffffff !important;
+        }
+
+        body.dark-mode .weather-main-card .weather-detail-item {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        body.dark-mode .weather-main-card .weather-note {
+            opacity: 0.9;
+        }
+
+        body.dark-mode .weather-main-card .btn-light {
+            background: rgba(255,255,255,0.15);
+            color: white;
+        }
+
+            body.dark-mode .weather-main-card .btn-light:hover {
+                background: rgba(255,255,255,0.3);
+            }
+
+    body.dark-mode .weather-tips li {
+        color: var(--text, #f0f6fc) !important;
+        border-bottom-color: var(--border, #30363d);
+    }
+
+    body.dark-mode .weather-tips .text-success {
+        color: #3fb950 !important;
+    }
+
+    body.dark-mode .weather-tips .text-warning {
+        color: #d29922 !important;
+    }
+
+    body.dark-mode .weather-tips .text-primary {
+        color: #58a6ff !important;
+    }
+
+    body.dark-mode .forecast-card {
+        border-color: var(--border, #30363d);
+        background: var(--card-bg, #161b22);
+    }
+
+        body.dark-mode .forecast-card:hover {
+            border-color: var(--primary-light, #58a6ff);
+        }
+
+    body.dark-mode .forecast-card-header {
+        border-bottom-color: var(--border, #30363d);
+        color: #c9d1d9 !important;
+    }
+
+    body.dark-mode .forecast-weather {
+        color: #e6edf3 !important;
+    }
+
+    body.dark-mode .forecast-max {
+        color: #f0f6fc !important;
+    }
+
+    body.dark-mode .forecast-min {
+        color: #8b949e !important;
+    }
+
+    body.dark-mode .page-title,
+    body.dark-mode .forecast-title {
+        color: var(--text, #f0f6fc) !important;
+    }
+
+    body.dark-mode .badge.bg-success {
+        background: #2ea043 !important;
+        color: #fff !important;
+    }
+
+    body.dark-mode .badge.bg-warning {
+        background: #d29922 !important;
+        color: #0d1117 !important;
+    }
+
+    body.dark-mode .badge.bg-danger {
+        background: #f85149 !important;
+        color: #fff !important;
+    }
+
+    /* ================================================================
+       RESPONSIVE
+       ================================================================ */
+    @media (max-width: 575.98px) {
+        .page-title {
+            font-size: 1.25rem;
+        }
+
+        .weather-temp {
+            font-size: 2.5rem;
+        }
+
+        .weather-details {
+            gap: var(--space-3, 0.75rem);
+        }
+
+        .weather-detail-item {
+            font-size: 0.85rem;
+        }
+
+        .forecast-icon {
+            width: 48px;
+            height: 48px;
+        }
+
+        .forecast-weather {
+            font-size: 0.75rem;
+            min-height: 2rem;
+        }
+
+        .forecast-temps {
+            font-size: 0.8rem;
+            gap: var(--space-2, 0.5rem);
+        }
+
+        .weather-risk {
+            flex-wrap: wrap;
+        }
+
+        .weather-main-card-header {
+            padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+        }
+
+        .weather-main-card-body {
+            padding: var(--space-4, 1rem);
+        }
+
+        .weather-location {
+            font-size: 1rem;
+        }
+
+            .weather-location .btn-light {
+                font-size: 0.6rem;
+                padding: 0.1rem 0.5rem;
+            }
+
+        .forecast-card-header {
+            font-size: 0.75rem;
+        }
+
+        .card-body {
+            padding: var(--space-3, 0.75rem);
+        }
+
+        /* 6 cards on mobile: 2 per row */
+        .col-6 {
+            flex: 0 0 50%;
+            max-width: 50%;
+        }
+    }
+
+    @media (min-width: 576px) and (max-width: 767.98px) {
+        .weather-temp {
+            font-size: 3rem;
+        }
+
+        .forecast-icon {
+            width: 54px;
+            height: 54px;
+        }
+
+        /* 6 cards on tablet: 3 per row */
+        .col-sm-4 {
+            flex: 0 0 33.333%;
+            max-width: 33.333%;
+        }
+    }
+
+    @media (min-width: 768px) and (max-width: 991.98px) {
+        /* 6 cards on small desktop: 3 per row */
+        .col-md-3 {
+            flex: 0 0 33.333%;
+            max-width: 33.333%;
+        }
+    }
+
+    @media (min-width: 992px) {
+        .page-title {
+            font-size: 1.75rem;
+        }
+
+        .weather-main-card-body {
+            padding: var(--space-6, 2rem);
+        }
+
+        .weather-temp {
+            font-size: 4rem;
+        }
+
+        /* 6 cards on large desktop: 6 per row */
+        .col-lg-2 {
+            flex: 0 0 16.666%;
+            max-width: 16.666%;
+        }
+    }
+</style>
+{% endblock %}

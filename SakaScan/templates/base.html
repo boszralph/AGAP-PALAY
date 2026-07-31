@@ -1,0 +1,899 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>AGAP-PALAY AI — Rice Disease Detection</title>
+
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js">
+    </script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+
+<body>
+
+    <!-- ============================================================ -->
+    <!--  APP WRAPPER                                                  -->
+    <!-- ============================================================ -->
+    <div class="app-wrapper">
+
+        <!-- ====== GUEST NAVBAR ====== -->
+        {% if not session.user_id %}
+        <nav class="guest-navbar" role="navigation" aria-label="Guest navigation">
+            <div class="guest-navbar-inner">
+                <a class="brand" href="{{ url_for('index') }}">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="AGAP-PALAY logo" width="43" height="43" />
+                    <span>AGAP-PALAY</span>
+                </a>
+                <ul class="guest-nav-links">
+                    <!-- Login and Register – hidden on mobile -->
+                    <li class="d-none d-md-inline"><a href="{{ url_for('login') }}">{{ 'Login' | translate }}</a></li>
+                    <li class="d-none d-md-inline"><a href="{{ url_for('register') }}">{{ 'Register' | translate }}</a></li>
+                    <li class="dropdown">
+                        <button class="dropdown-toggle" id="langGuestBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-language"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="langGuestBtn">
+                            <li><a class="dropdown-item" href="{{ url_for('set_language', lang='en') }}">English</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('set_language', lang='tl') }}">Tagalog</a></li>
+                        </ul>
+                    </li>
+                    <li>
+                        <button id="darkModeToggleGuest" class="theme-toggle" aria-label="Toggle dark mode">
+                            <i class="fas fa-moon"></i>
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+        {% endif %}
+
+        <!-- ====== TOP BAR (always visible for logged‑in users) ====== -->
+        {% if session.user_id %}
+        <header class="mobile-top-bar" role="banner">
+            <button class="menu-btn" id="menuBtn" aria-label="Toggle navigation drawer">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="app-title">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="AGAP-PALAY logo" width="43" height="43" />
+                <span>{{ 'AGAP-PALAY' | translate }}</span>
+            </div>
+            <div class="top-bar-right">
+
+            </div>
+        </header>
+        {% endif %}
+
+        <!-- ====== SIDEBAR / DRAWER ====== -->
+        {% if session.user_id %}
+        <div class="drawer-overlay" id="drawerOverlay"></div>
+        <aside class="drawer" id="drawer" role="navigation" aria-label="Main navigation">
+
+            <!-- Drawer Header: Brand + Close (always visible) -->
+            <div class="drawer-header">
+                <div class="drawer-brand">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="AGAP-PALAY" width="43" height="43" />
+                    <span>{{ 'AGAP-PALAY' | translate }}</span>
+                </div>
+                <button class="drawer-close" id="drawerClose" aria-label="Close drawer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Navigation Links -->
+            {% set is_admin_page = request.endpoint and request.endpoint.startswith('admin_') %}
+            <nav class="drawer-nav">
+                {% if is_admin_page %}
+                <!-- Admin mode -->
+                <a class="drawer-link {% if request.endpoint == 'admin_dashboard' %}active{% endif %}"
+                   href="{{ url_for('admin_dashboard') }}">
+                    <i class="fas fa-tachometer-alt"></i> {{ 'Dashboard' | translate }}
+                </a>
+                <a class="drawer-link {% if request.endpoint == 'admin_users' %}active{% endif %}"
+                   href="{{ url_for('admin_users') }}">
+                    <i class="fas fa-users"></i> {{ 'Users' | translate }}
+                </a>
+                <a class="drawer-link {% if request.endpoint == 'admin_diseases' %}active{% endif %}"
+                   href="{{ url_for('admin_diseases') }}">
+                    <i class="fas fa-leaf"></i> {{ 'Diseases' | translate }}
+                </a>
+                <a class="drawer-link {% if request.endpoint == 'admin_reports' %}active{% endif %}"
+                   href="{{ url_for('admin_reports') }}">
+                    <i class="fas fa-chart-bar"></i> {{ 'Reports' | translate }}
+                </a>
+                <a class="drawer-link {% if request.endpoint == 'admin_map' %}active{% endif %}"
+                   href="{{ url_for('admin_map') }}">
+                    <i class="fas fa-map-marked-alt"></i> {{ 'Map' | translate }}
+                </a>
+                {% else %}
+                <!-- Farmer mode -->
+                <a class="drawer-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
+                   href="{{ url_for('dashboard') }}">
+                    <i class="fas fa-tachometer-alt"></i> {{ 'Dashboard' | translate }}
+                </a>
+                <a class="drawer-link {% if request.endpoint == 'scan' %}active{% endif %}"
+                   href="{{ url_for('scan') }}">
+                    <i class="fas fa-camera"></i> {{ 'Scan' | translate }}
+                </a>
+                <a class="drawer-link {% if request.endpoint == 'weather' %}active{% endif %}"
+                   href="{{ url_for('weather') }}">
+                    <i class="fas fa-cloud-sun"></i> {{ 'Weather' | translate }}
+                </a>
+                <a class="drawer-link {% if request.endpoint == 'history' %}active{% endif %}"
+                   href="{{ url_for('history') }}">
+                    <i class="fas fa-history"></i> {{ 'History' | translate }}
+                </a>
+                <a class="drawer-link {% if request.endpoint == 'disease_list' %}active{% endif %}"
+                   href="{{ url_for('disease_list') }}">
+                    <i class="fas fa-book"></i> {{ 'Library' | translate }}
+                </a>
+                {% endif %}
+            </nav>
+
+            <!-- Drawer Footer: User Info + Settings Dropup -->
+            <div class="drawer-footer">
+                
+                    <div class="dropdown dropup">
+                        <button class="dropdown-toggle user-toggle" type="button" id="userSettingsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <div class="user-toggle-info">
+                                <span class="user-toggle-avatar">{{ current_user_fullname|first|upper if current_user_fullname else 'U' }}</span>
+                                <div class="user-toggle-text">
+                                    <span class="user-toggle-name">{{ current_user_fullname }}</span>
+                                    <span class="user-toggle-role">{{ session.role|capitalize }}</span>
+                                </div>
+                            </div>
+                            <i class="fas fa-chevron-up toggle-icon"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end w-100" aria-labelledby="userSettingsDropdown">
+                            <!-- Profile -->
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('profile') }}">
+                                    <i class="fas fa-id-card me-2"></i> {{ 'Profile' | translate }}
+                                </a>
+                            </li>
+
+                            <!-- Admin / Farmer Mode Toggle -->
+                            {% if session.role == 'admin' %}
+                            <li>
+                                {% if is_admin_page %}
+                                <a class="dropdown-item" href="{{ url_for('dashboard') }}">
+                                    <i class="fas fa-tachometer-alt me-2"></i> {{ 'Farmer Mode' | translate }}
+                                </a>
+                                {% else %}
+                                <a class="dropdown-item" href="{{ url_for('admin_dashboard') }}">
+                                    <i class="fas fa-user-shield me-2"></i> {{ 'Admin Mode' | translate }}
+                                </a>
+                                {% endif %}
+                            </li>
+                            {% endif %}
+
+                            <li><hr class="dropdown-divider"></li>
+
+                            <!-- Dark Mode Toggle -->
+                            <li>
+                                <button id="darkModeToggleDrawer" class="dropdown-item" style="background:none; border:none; width:100%; text-align:left;">
+                                    <i class="fas fa-moon me-2"></i><span>{{ 'Dark Mode' | translate }}</span>
+                                </button>
+                            </li>
+
+                            <!-- Language Selector -->
+                            <li>
+                                <span class="dropdown-item-text d-flex align-items-center gap-3">
+                                    <i class="fas fa-language"></i>
+                                    <a href="{{ url_for('set_language', lang='en') }}"
+                                       class="{% if session.get('language') == 'en' %}active-lang{% endif %}">English</a>
+                                    <span class="lang-divider">|</span>
+                                    <a href="{{ url_for('set_language', lang='tl') }}"
+                                       class="{% if session.get('language') == 'tl' %}active-lang{% endif %}">Tagalog</a>
+                                </span>
+                            </li>
+
+                            <li><hr class="dropdown-divider"></li>
+
+                            <!-- Logout -->
+                            <li>
+                                <a class="dropdown-item text-danger" href="{{ url_for('logout') }}">
+                                    <i class="fas fa-sign-out-alt me-2"></i> {{ 'Logout' | translate }}
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+        </aside>
+        {% endif %}
+
+        <!-- ====== MAIN CONTENT ====== -->
+        <main class="main-content {% if session.user_id %}logged-in{% else %}guest{% endif %}">
+
+            <!-- Flash messages -->
+            <div class="flash-container">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category if category else 'info' }} alert-dismissible fade show" role="alert">
+                    <span class="alert-icon">
+                        {% if category == 'success' %}<i class="fas fa-check-circle"></i>
+                        {% elif category == 'danger' %}<i class="fas fa-exclamation-circle"></i>
+                        {% elif category == 'warning' %}<i class="fas fa-exclamation-triangle"></i>
+                        {% else %}<i class="fas fa-info-circle"></i>{% endif %}
+                    </span>
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endfor %}
+                {% endif %}
+                {% endwith %}
+            </div>
+
+            <!-- Page content -->
+            <div class="page-content">
+                {% block content %}{% endblock %}
+            </div>
+
+        </main>
+
+        <!-- ================================================================ -->
+        <!--  BOTTOM NAVIGATION  —  SCAN BUTTON CENTERED & ENLARGED           -->
+        <!-- ================================================================ -->
+        {% if session.user_id %}
+        <nav class="bottom-nav" id="bottomNav" role="navigation" aria-label="Mobile navigation">
+
+            {% if is_admin_page %}
+            <!-- ─── ADMIN BOTTOM NAV (unchanged) ─── -->
+            <a class="bottom-nav-item {% if request.endpoint == 'admin_dashboard' %}active{% endif %}"
+               href="{{ url_for('admin_dashboard') }}">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>{{ 'Dashboard' | translate }}</span>
+            </a>
+            <a class="bottom-nav-item {% if request.endpoint == 'admin_users' %}active{% endif %}"
+               href="{{ url_for('admin_users') }}">
+                <i class="fas fa-users"></i>
+                <span>{{ 'Users' | translate }}</span>
+            </a>
+            <a class="bottom-nav-item {% if request.endpoint == 'admin_diseases' %}active{% endif %}"
+               href="{{ url_for('admin_diseases') }}">
+                <i class="fas fa-leaf"></i>
+                <span>{{ 'Diseases' | translate }}</span>
+            </a>
+            <a class="bottom-nav-item {% if request.endpoint == 'admin_reports' %}active{% endif %}"
+               href="{{ url_for('admin_reports') }}">
+                <i class="fas fa-chart-bar"></i>
+                <span>{{ 'Reports' | translate }}</span>
+            </a>
+            <a class="bottom-nav-item {% if request.endpoint == 'admin_map' %}active{% endif %}"
+               href="{{ url_for('admin_map') }}">
+                <i class="fas fa-map-marked-alt"></i>
+                <span>{{ 'Map' | translate }}</span>
+            </a>
+            {% else %}
+            <!-- ─── FARMER BOTTOM NAV — SCAN WITH COMBINED ICON ─── -->
+            <a class="bottom-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}"
+               href="{{ url_for('dashboard') }}">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>{{ 'Dashboard' | translate }}</span>
+            </a>
+
+            <a class="bottom-nav-item {% if request.endpoint == 'weather' %}active{% endif %}"
+               href="{{ url_for('weather') }}">
+                <i class="fas fa-cloud-sun"></i>
+                <span>{{ 'Weather' | translate }}</span>
+            </a>
+
+            <!-- ★ SCAN — camera + magnifying glass badge ★ -->
+            <a class="bottom-nav-item bottom-nav-scan {% if request.endpoint == 'scan' %}active{% endif %}"
+               href="{{ url_for('scan') }}">
+                <span class="scan-icon-wrapper">
+                    <i class="fas fa-camera scan-camera-icon"></i>
+                    <span class="scan-search-badge">
+                        <i class="fas fa-search"></i>
+                    </span>
+                </span>
+                <span class="scan-label">{{ 'Scan' | translate }}</span>
+            </a>
+
+            <a class="bottom-nav-item {% if request.endpoint == 'history' %}active{% endif %}"
+               href="{{ url_for('history') }}">
+                <i class="fas fa-history"></i>
+                <span>{{ 'History' | translate }}</span>
+            </a>
+
+            <a class="bottom-nav-item {% if request.endpoint == 'disease_list' %}active{% endif %}"
+               href="{{ url_for('disease_list') }}">
+                <i class="fas fa-book"></i>
+                <span>{{ 'Library' | translate }}</span>
+            </a>
+            {% endif %}
+
+        </nav>
+        {% endif %}
+
+    </div>
+    <!-- /app-wrapper -->
+    <!-- ====== SCRIPTS ====== -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
+    </script>
+    <script>
+        // ---- Auto-dismiss flash messages ----
+        (function () {
+            setTimeout(() => {
+                document.querySelectorAll('.alert').forEach(el => {
+                    try {
+                        const bsAlert = new bootstrap.Alert(el);
+                        bsAlert.close();
+                    } catch (_) { /* ignore */ }
+                });
+            }, 5000);
+        })();
+
+        // ---- Dark mode ----
+        (function () {
+            const body = document.body;
+
+            function setDarkMode(enabled) {
+                if (enabled) {
+                    body.classList.add('dark-mode');
+                    localStorage.setItem('darkMode', 'enabled');
+                } else {
+                    body.classList.remove('dark-mode');
+                    localStorage.setItem('darkMode', 'disabled');
+                }
+                // Update all toggle buttons
+                document.querySelectorAll('[id*="darkModeToggle"]').forEach(btn => {
+                    const icon = btn.querySelector('i');
+                    const span = btn.querySelector('span');
+                    if (icon) {
+                        icon.classList.toggle('fa-moon', !enabled);
+                        icon.classList.toggle('fa-sun', enabled);
+                    }
+                    if (span) span.textContent = enabled ? 'Light Mode' : 'Dark Mode';
+                });
+            }
+
+            // Init from localStorage
+            const dark = localStorage.getItem('darkMode') === 'enabled';
+            setDarkMode(dark);
+
+            // Attach event listeners
+            document.querySelectorAll('[id*="darkModeToggle"]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const isDark = body.classList.contains('dark-mode');
+                    setDarkMode(!isDark);
+                });
+            });
+        })();
+
+        // ---- Drawer controls (togglable on all screen sizes) ----
+        (function () {
+            const drawer = document.getElementById('drawer');
+            const overlay = document.getElementById('drawerOverlay');
+            const menuBtn = document.getElementById('menuBtn');
+            const closeBtn = document.getElementById('drawerClose');
+            const mainContent = document.querySelector('.main-content');
+            const bottomNav = document.querySelector('.bottom-nav');
+
+            // Helper to detect large screens (≥992px)
+            function isLargeScreen() {
+                return window.innerWidth >= 992;
+            }
+
+            // Update layout based on drawer open state
+            function updateLayout(open) {
+                if (!drawer) return;
+                // Toggle drawer class
+                drawer.classList.toggle('open', open);
+
+                // Overlay: only on small screens when open
+                if (overlay) {
+                    if (!isLargeScreen() && open) {
+                        overlay.classList.add('show');
+                        document.body.style.overflow = 'hidden';
+                    } else {
+                        overlay.classList.remove('show');
+                        document.body.style.overflow = '';
+                    }
+                }
+
+                // On large screens, adjust main content and bottom nav
+                if (isLargeScreen()) {
+                    if (mainContent) mainContent.classList.toggle('drawer-open', open);
+                    if (bottomNav) bottomNav.classList.toggle('drawer-open', open);
+                } else {
+                    // Remove large‑screen helper classes on small screens
+                    if (mainContent) mainContent.classList.remove('drawer-open');
+                    if (bottomNav) bottomNav.classList.remove('drawer-open');
+                }
+            }
+
+            // Open / close functions
+            function openDrawer() { updateLayout(true); }
+
+            function closeDrawer() { updateLayout(false); }
+
+            // Event listeners
+            if (menuBtn) menuBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                const isOpen = drawer && drawer.classList.contains('open');
+                updateLayout(!isOpen);
+            });
+
+            if (closeBtn) closeBtn.addEventListener('click', closeDrawer);
+            if (overlay) overlay.addEventListener('click', closeDrawer);
+
+            // Close on Escape key
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && drawer && drawer.classList.contains('open')) {
+                    closeDrawer();
+                }
+            });
+
+            // ---- Initial state ----
+            function initDrawer() {
+                if (isLargeScreen()) {
+                    // Open by default on large screens
+                    updateLayout(true);
+                } else {
+                    // Closed by default on mobile
+                    updateLayout(false);
+                }
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initDrawer);
+            } else {
+                initDrawer();
+            }
+
+            // ---- Resize handler ----
+            let resizeTimer;
+            window.addEventListener('resize', function () {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function () {
+                    const isOpen = drawer && drawer.classList.contains('open');
+                    if (isLargeScreen()) {
+                        if (mainContent) mainContent.classList.toggle('drawer-open', isOpen);
+                        if (bottomNav) bottomNav.classList.toggle('drawer-open', isOpen);
+                    } else {
+                        if (mainContent) mainContent.classList.remove('drawer-open');
+                        if (bottomNav) bottomNav.classList.remove('drawer-open');
+                        if (overlay && !isOpen) {
+                            overlay.classList.remove('show');
+                            document.body.style.overflow = '';
+                        }
+                    }
+                }, 200);
+            });
+        })();
+    </script>
+
+    <style>
+        /* ============================================================
+           FORCE REMOVE ALL SPACING ABOVE THE NAVBAR
+           ============================================================ */
+
+        /* 1. Reset body and html – kill all margins and padding */
+        html,
+        body {
+            margin: 0 !important;
+            padding: 0 !important;
+            min-height: 100vh;
+        }
+
+        /* 2. Make the guest navbar fixed at the very top */
+        .guest-navbar {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            z-index: 1050 !important;
+            margin: 0 !important;
+            padding: 0 var(--space-4) !important;
+            height: var(--navbar-height) !important;
+            background: var(--gradient-primary) !important;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08) !important;
+        }
+
+        /* 3. Push main content down so it's not hidden behind the fixed navbar */
+        .main-content.guest {
+            padding-top: var(--navbar-height) !important;
+            margin-top: 0 !important;
+        }
+
+            .main-content.guest .page-content {
+                padding-top: 0 !important;
+            }
+
+            .main-content.guest .flash-container {
+                padding-top: 0 !important;
+                margin-top: 0 !important;
+            }
+
+        /* 5. Ensure the app-wrapper has no top spacing */
+        .app-wrapper {
+            padding-top: 0 !important;
+            margin-top: 0 !important;
+        }
+
+        .main-content.guest .container-fluid {
+            padding-top: 0 !important;
+        }
+
+
+        /* ============================================================
+           LOGO — CLEAN & RESPONSIVE (no container, no background)
+           ============================================================ */
+
+        .guest-navbar .brand,
+        .mobile-top-bar .app-title,
+        .drawer-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+
+            /* Just the raw image — no background, padding, or shadow */
+            .guest-navbar .brand img,
+            .mobile-top-bar .app-title img,
+            .drawer-brand img {
+                display: block;
+                width: 47px;
+                height: 47px;
+                transition: transform 0.2s ease;
+            }
+
+            /* Brand text — stays clean and readable */
+            .guest-navbar .brand span,
+            .mobile-top-bar .app-title span,
+            .drawer-brand span {
+                font-size: 1.15rem;
+                font-weight: 700;
+                color: #ffffff;
+                text-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
+                letter-spacing: 0.03em;
+                white-space: nowrap;
+            }
+
+        /* ---- Responsive scaling (only size, no container) ---- */
+        @media (max-width: 576px) {
+            .guest-navbar .brand img,
+            .mobile-top-bar .app-title img,
+            .drawer-brand img {
+                width: 44px !important;
+                height: 44px !important;
+            }
+
+            .guest-navbar .brand span,
+            .mobile-top-bar .app-title span,
+            .drawer-brand span {
+                font-size: 1.05rem;
+            }
+
+            .guest-navbar .brand,
+            .mobile-top-bar .app-title,
+            .drawer-brand {
+                gap: 8px;
+            }
+        }
+
+        @media (max-width: 400px) {
+            .guest-navbar .brand img,
+            .mobile-top-bar .app-title img,
+            .drawer-brand img {
+                width: 48px !important;
+                height: 48px !important;
+            }
+
+            .guest-navbar .brand span,
+            .mobile-top-bar .app-title span,
+            .drawer-brand span {
+                font-size: 0.95rem;
+            }
+        }
+
+
+        /* ============================================================
+           BOTTOM NAV — SCAN BUTTON CENTERED & ENLARGED
+           ============================================================ */
+
+        .bottom-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            background: var(--bg-surface, #ffffff);
+            border-top: 1px solid var(--border-color, rgba(0, 0, 0, 0.06));
+            padding: 6px 0 env(safe-area-inset-bottom, 8px) 0;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 1040;
+            height: 68px;
+            box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.04);
+            transition: background 0.3s ease, border-color 0.3s ease;
+        }
+
+        body.dark-mode .bottom-nav {
+            background: var(--bg-surface-dark, #1e1e2a);
+            border-top-color: var(--border-color-dark, rgba(255, 255, 255, 0.06));
+        }
+
+        /* ---- regular nav items ---- */
+        .bottom-nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            color: var(--text-muted, #8a8fa3);
+            font-size: 10px;
+            font-weight: 500;
+            transition: color 0.2s ease, transform 0.2s ease;
+            padding: 4px 8px;
+            border-radius: 12px;
+            min-width: 48px;
+            flex: 1 1 0;
+            position: relative;
+            background: transparent;
+            border: none;
+            gap: 2px;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+            .bottom-nav-item i {
+                font-size: 20px;
+                transition: transform 0.2s ease, color 0.2s ease;
+            }
+
+            .bottom-nav-item span {
+                font-size: 9px;
+                letter-spacing: 0.02em;
+                line-height: 1.2;
+                transition: color 0.2s ease;
+            }
+
+            .bottom-nav-item.active {
+                color: var(--primary, #2d7d46);
+            }
+
+                .bottom-nav-item.active i {
+                    color: var(--primary, #2d7d46);
+                }
+
+        body.dark-mode .bottom-nav-item {
+            color: var(--text-muted-dark, #9a9eb2);
+        }
+
+            body.dark-mode .bottom-nav-item.active {
+                color: var(--primary-light, #4caf7a);
+            }
+
+                body.dark-mode .bottom-nav-item.active i {
+                    color: var(--primary-light, #4caf7a);
+                }
+
+
+        /* ============================================================
+           ★ SCAN BUTTON — COMBINED CAMERA + MAGNIFYING GLASS ★
+           ============================================================ */
+        .bottom-nav-scan {
+            flex: 1.5 1 0 !important;
+            min-width: 64px;
+            margin: 0 2px;
+            padding: 0 4px;
+            position: relative;
+            transform: translateY(-6px);
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .scan-icon-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: var(--gradient-primary, linear-gradient(135deg, #2d7d46, #4caf7a));
+            box-shadow: 0 4px 16px rgba(45, 125, 70, 0.35);
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+            margin: 0 auto 2px auto;
+        }
+
+        .scan-camera-icon {
+            font-size: 26px;
+            color: #ffffff;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+            transition: transform 0.3s ease;
+        }
+
+        .scan-search-badge {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1.5px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            transition: transform 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
+        }
+
+            .scan-search-badge i {
+                font-size: 11px;
+                color: #2d7d46;
+            }
+
+        body.dark-mode .scan-search-badge {
+            background: rgba(30, 30, 42, 0.92);
+            border-color: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        }
+
+            body.dark-mode .scan-search-badge i {
+                color: #4caf7a;
+            }
+
+        .bottom-nav-scan .scan-label {
+            font-size: 11px !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.04em;
+            color: var(--primary, #2d7d46);
+            transition: color 0.2s ease;
+        }
+
+        body.dark-mode .bottom-nav-scan .scan-label {
+            color: var(--primary-light, #4caf7a);
+        }
+
+        .bottom-nav-scan:hover {
+            transform: translateY(-8px) scale(1.02);
+        }
+
+            .bottom-nav-scan:hover .scan-icon-wrapper {
+                box-shadow: 0 6px 24px rgba(45, 125, 70, 0.45);
+                transform: scale(1.04);
+            }
+
+            .bottom-nav-scan:hover .scan-search-badge {
+                transform: scale(1.08);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            }
+
+        .bottom-nav-scan:active .scan-icon-wrapper {
+            transform: scale(0.92);
+            box-shadow: 0 2px 8px rgba(45, 125, 70, 0.25);
+        }
+
+        .bottom-nav-scan.active .scan-icon-wrapper {
+            box-shadow: 0 4px 20px rgba(45, 125, 70, 0.5);
+        }
+
+        .bottom-nav-scan.active .scan-search-badge {
+            background: rgba(255, 255, 255, 1);
+            box-shadow: 0 2px 12px rgba(45, 125, 70, 0.3);
+        }
+
+        body.dark-mode .bottom-nav-scan.active .scan-search-badge {
+            background: rgba(50, 50, 70, 1);
+        }
+
+
+        /* ============================================================
+           RESPONSIVE TWEAKS
+           ============================================================ */
+        @media (max-width: 420px) {
+            .bottom-nav {
+                height: 60px;
+                padding: 4px 0 env(safe-area-inset-bottom, 6px) 0;
+            }
+
+            .bottom-nav-item {
+                min-width: 36px;
+                padding: 2px 4px;
+            }
+
+                .bottom-nav-item i {
+                    font-size: 17px;
+                }
+
+                .bottom-nav-item span {
+                    font-size: 8px;
+                }
+
+            .bottom-nav-scan {
+                flex: 1.6 1 0 !important;
+                min-width: 52px;
+                transform: translateY(-4px);
+            }
+
+            .scan-icon-wrapper {
+                width: 46px;
+                height: 46px;
+            }
+
+            .scan-camera-icon {
+                font-size: 21px;
+            }
+
+            .scan-search-badge {
+                width: 18px;
+                height: 18px;
+                bottom: 1px;
+                right: 1px;
+            }
+
+                .scan-search-badge i {
+                    font-size: 9px;
+                }
+
+            .bottom-nav-scan .scan-label {
+                font-size: 9px !important;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .scan-icon-wrapper {
+                width: 40px;
+                height: 40px;
+            }
+
+            .scan-camera-icon {
+                font-size: 18px;
+            }
+
+            .scan-search-badge {
+                width: 15px;
+                height: 15px;
+                bottom: 0px;
+                right: 0px;
+            }
+
+                .scan-search-badge i {
+                    font-size: 7px;
+                }
+
+            .bottom-nav-scan .scan-label {
+                font-size: 8px !important;
+            }
+
+            .bottom-nav-scan {
+                transform: translateY(-3px);
+            }
+        }
+
+        /* ---- large screens: bottom nav still visible but drawer pushes it ---- */
+        @media (min-width: 992px) {
+            .bottom-nav.drawer-open {
+                margin-left: 280px;
+            }
+
+            .bottom-nav {
+                transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+        }
+    </style>
+
+</body>
+</html>

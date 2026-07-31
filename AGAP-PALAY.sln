@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36518.9
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "AGAP-PALAY", "SakaScan\AGAP-PALAY.pyproj", "{ED09DB1A-44DF-42C6-8891-7BEE53F08A0B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{ED09DB1A-44DF-42C6-8891-7BEE53F08A0B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ED09DB1A-44DF-42C6-8891-7BEE53F08A0B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ED09DB1A-44DF-42C6-8891-7BEE53F08A0B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ED09DB1A-44DF-42C6-8891-7BEE53F08A0B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {EAAA1386-52BC-4547-80E6-0272860FAAD1}
+	EndGlobalSection
+EndGlobal

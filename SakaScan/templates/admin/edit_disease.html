@@ -1,0 +1,438 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-4">
+
+    <!-- Page Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <h1 class="page-title">
+            <i class="fas fa-edit me-2 text-primary"></i>{{ 'Edit Disease' | translate }}
+        </h1>
+        <span class="text-muted">{{ disease.name_en if disease else ('New Disease' | translate) }}</span>
+    </div>
+
+    <!-- Edit Form Card -->
+    <div class="card edit-disease-card">
+        <div class="card-header">
+            <i class="fas fa-edit card-icon me-2"></i>{{ 'Disease Details' | translate }}
+        </div>
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+
+                <!-- Disease Information -->
+                <h5 class="section-title">{{ 'Disease Information' | translate }}</h5>
+
+                <div class="form-group mb-3">
+                    <label class="form-label" for="name_en">{{ 'Name' | translate }} <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="name_en" name="name_en" value="{{ disease.name_en if disease else '' }}" required>
+                </div>
+
+                <div class="form-group mb-3">
+                    <label class="form-label" for="description_en">{{ 'Description' | translate }}</label>
+                    <textarea class="form-control" id="description_en" name="description_en" rows="3">{{ disease.description_en if disease else '' }}</textarea>
+                </div>
+
+                <div class="form-group mb-3">
+                    <label class="form-label" for="symptoms_en">{{ 'Symptoms' | translate }}</label>
+                    <textarea class="form-control" id="symptoms_en" name="symptoms_en" rows="3">{{ disease.symptoms_en if disease else '' }}</textarea>
+                </div>
+
+                <div class="form-group mb-3">
+                    <label class="form-label" for="causes_en">{{ 'Causes' | translate }}</label>
+                    <textarea class="form-control" id="causes_en" name="causes_en" rows="3">{{ disease.causes_en if disease else '' }}</textarea>
+                </div>
+
+                <div class="form-group mb-3">
+                    <label class="form-label" for="prevention_en">{{ 'Prevention' | translate }}</label>
+                    <textarea class="form-control" id="prevention_en" name="prevention_en" rows="3">{{ disease.prevention_en if disease else '' }}</textarea>
+                </div>
+
+                <div class="form-group mb-3">
+                    <label class="form-label" for="treatment_en">{{ 'Treatment' | translate }}</label>
+                    <textarea class="form-control" id="treatment_en" name="treatment_en" rows="3">{{ disease.treatment_en if disease else '' }}</textarea>
+                </div>
+
+                <!-- Row for Category & Status -->
+                <div class="row g-3 mt-2">
+                    <div class="col-md-6">
+                        <div class="form-group mb-3">
+                            <label class="form-label" for="category_id">{{ 'Category' | translate }}</label>
+                            <select class="form-select" id="category_id" name="category_id">
+                                <option value="">{{ 'Select Category' | translate }}</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat.id }}" {% if disease and disease.category_id==cat.id %}selected{% endif %}>{{ cat.category_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group mb-3">
+                            <label class="form-label" for="status">{{ 'Status' | translate }}</label>
+                            <select class="form-select" id="status" name="status">
+                                <option value="published" {% if disease and disease.status=='published' %}selected{% endif %}>{{ 'Published' | translate }}</option>
+                                <option value="hidden" {% if disease and disease.status=='hidden' %}selected{% endif %}>{{ 'Hidden' | translate }}</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ===== IMAGE MANAGEMENT (Multiple) ===== -->
+                <hr class="my-4">
+
+                <h5 class="section-title">{{ 'Images' | translate }}</h5>
+
+                <!-- Upload new images -->
+                <div class="form-group mb-4">
+                    <label class="form-label" for="images">{{ 'Add New Images' | translate }}</label>
+                    <input type="file" class="form-control" id="images" name="images" accept="image/*" multiple>
+                    <small class="text-muted form-text">{{ 'You can upload up to 3 images. The first uploaded will be set as primary.' | translate }}</small>
+                </div>
+
+                <!-- Existing Images -->
+                {% if images %}
+                <div class="form-group mb-4">
+                    <label class="form-label">{{ 'Existing Images' | translate }}</label>
+                    <div class="row g-2">
+                        {% for img in images %}
+                        <div class="col-6 col-sm-4 col-md-3">
+                            <div class="existing-image-card">
+                                <img src="{{ url_for('static', filename='uploads/' + img.image_path) }}" class="img-fluid rounded" alt="{{ 'Disease image' | translate }}">
+                                <div class="image-actions mt-1">
+                                    <div class="form-check">
+                                        <input type="radio" name="primary_image" value="{{ img.id }}" {% if img.is_primary %}checked{% endif %}>
+                                        <label class="form-check-label small">{{ 'Primary' | translate }}</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input type="checkbox" name="delete_images" value="{{ img.id }}">
+                                        <label class="form-check-label text-danger small">{{ 'Delete' | translate }}</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <small class="text-muted form-text">{{ 'Select primary image and mark images for deletion as needed.' | translate }}</small>
+                </div>
+                {% else %}
+                <div class="alert alert-light text-muted small">
+                    <i class="fas fa-info-circle me-1"></i>{{ 'No images uploaded yet.' | translate }}
+                </div>
+                {% endif %}
+
+                <!-- Actions -->
+                <div class="d-flex flex-wrap gap-2 mt-4">
+                    <button type="submit" class="btn btn-primary px-5">
+                        <i class="fas fa-save me-2"></i>{{ 'Save' | translate }}
+                    </button>
+                    <a href="{{ url_for('admin_diseases') }}" class="btn btn-outline-secondary px-4">
+                        {{ 'Cancel' | translate }}
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+
+<!-- Page-specific fine-tuning -->
+<style>
+    .page-title {
+        font-family: var(--font-heading);
+        font-weight: 700;
+        font-size: 1.75rem;
+        letter-spacing: -0.02em;
+        color: var(--text);
+        margin: 0;
+    }
+
+    .edit-disease-card {
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--border);
+        background: var(--card-bg);
+        box-shadow: var(--shadow-sm);
+        transition: box-shadow var(--transition-base);
+        overflow: hidden;
+        max-width: 820px;
+        margin: 0 auto;
+    }
+
+        .edit-disease-card:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .edit-disease-card .card-header {
+            background: var(--gradient-primary-subtle);
+            border-bottom: 1px solid var(--border);
+            padding: var(--space-3) var(--space-5);
+            font-weight: 600;
+            font-family: var(--font-heading);
+            color: var(--text);
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+        }
+
+            .edit-disease-card .card-header .card-icon {
+                color: var(--primary);
+            }
+
+        .edit-disease-card .card-body {
+            padding: var(--space-5);
+        }
+
+    .section-title {
+        font-family: var(--font-heading);
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: var(--text);
+        border-bottom: 1px solid var(--border-light);
+        padding-bottom: var(--space-2);
+        margin-bottom: var(--space-4);
+    }
+
+    .form-label {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-bottom: var(--space-1);
+        display: block;
+    }
+
+    .form-control,
+    .form-select {
+        border-radius: var(--radius-md);
+        border: 1.5px solid var(--border);
+        background: var(--card-bg);
+        color: var(--text);
+        padding: var(--space-2) var(--space-4);
+        min-height: 46px;
+        transition: all var(--transition-fast);
+        font-family: var(--font-family);
+        font-size: 0.95rem;
+        width: 100%;
+    }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(30, 122, 58, 0.12);
+            outline: none;
+        }
+
+        .form-control[type="file"] {
+            padding: var(--space-2);
+            min-height: auto;
+            border: 1px dashed var(--border);
+            background: var(--gradient-primary-subtle);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+            .form-control[type="file"]:hover {
+                border-color: var(--primary);
+                background: rgba(30, 122, 58, 0.06);
+            }
+
+            .form-control[type="file"]::-webkit-file-upload-button {
+                background: var(--gradient-primary);
+                color: white;
+                border: none;
+                padding: var(--space-1) var(--space-4);
+                border-radius: var(--radius-sm);
+                font-weight: 600;
+                cursor: pointer;
+                margin-right: var(--space-3);
+                transition: all var(--transition-fast);
+            }
+
+                .form-control[type="file"]::-webkit-file-upload-button:hover {
+                    filter: brightness(0.9);
+                }
+
+    .existing-image-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: var(--space-2);
+        text-align: center;
+        transition: all var(--transition-fast);
+    }
+
+        .existing-image-card:hover {
+            border-color: var(--primary);
+        }
+
+        .existing-image-card img {
+            width: 100%;
+            height: 100px;
+            object-fit: cover;
+            border-radius: calc(var(--radius-sm) - 2px);
+            background: var(--bg);
+        }
+
+    .image-actions {
+        display: flex;
+        justify-content: space-around;
+        font-size: 0.8rem;
+        margin-top: var(--space-1);
+    }
+
+        .image-actions .form-check {
+            padding-left: 0;
+            margin-bottom: 0;
+        }
+
+        .image-actions .form-check-input {
+            margin-right: 4px;
+        }
+
+    .form-text {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-top: var(--space-1);
+        display: block;
+    }
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-2);
+        padding: var(--space-2) var(--space-5);
+        border-radius: var(--radius-md);
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: all var(--transition-fast);
+        border: none;
+        cursor: pointer;
+        text-decoration: none;
+        font-family: var(--font-family);
+        line-height: 1.5;
+        min-height: 46px;
+    }
+
+    .btn-primary {
+        background: var(--gradient-primary);
+        color: white;
+        box-shadow: 0 2px 8px rgba(30, 122, 58, 0.25);
+    }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(30, 122, 58, 0.35);
+            color: white;
+        }
+
+    .btn-outline-secondary {
+        background: transparent;
+        color: var(--text-secondary);
+        border: 1.5px solid var(--border);
+    }
+
+        .btn-outline-secondary:hover {
+            background: var(--border);
+            color: var(--text);
+            transform: translateY(-2px);
+        }
+
+    /* Dark mode */
+    body.dark-mode .edit-disease-card {
+        border-color: var(--border);
+        background: var(--card-bg);
+    }
+
+        body.dark-mode .edit-disease-card .card-header {
+            background: rgba(30, 122, 58, 0.12);
+            border-bottom-color: var(--border);
+        }
+
+    body.dark-mode .form-control,
+    body.dark-mode .form-select {
+        background: var(--card-bg);
+        color: var(--text);
+        border-color: var(--border);
+    }
+
+        body.dark-mode .form-control:focus,
+        body.dark-mode .form-select:focus {
+            border-color: var(--primary-light);
+            box-shadow: 0 0 0 4px rgba(30, 122, 58, 0.2);
+        }
+
+        body.dark-mode .form-control[type="file"] {
+            background: rgba(30, 122, 58, 0.06);
+            border-color: var(--border);
+        }
+
+            body.dark-mode .form-control[type="file"]:hover {
+                border-color: var(--primary-light);
+                background: rgba(30, 122, 58, 0.1);
+            }
+
+    body.dark-mode .existing-image-card {
+        border-color: var(--border);
+        background: var(--card-bg);
+    }
+
+        body.dark-mode .existing-image-card:hover {
+            border-color: var(--primary-light);
+        }
+
+    body.dark-mode .btn-outline-secondary {
+        color: var(--text-secondary);
+        border-color: var(--border);
+    }
+
+        body.dark-mode .btn-outline-secondary:hover {
+            background: var(--border);
+            color: var(--text);
+        }
+
+    body.dark-mode .section-title {
+        border-bottom-color: var(--border);
+    }
+
+    /* Responsive */
+    @media (max-width: 576px) {
+        .page-title {
+            font-size: 1.3rem;
+        }
+
+        .edit-disease-card .card-body {
+            padding: var(--space-4);
+        }
+
+        .btn {
+            font-size: 0.85rem;
+            padding: var(--space-2) var(--space-3);
+            min-height: 40px;
+            flex: 1;
+        }
+
+        .form-control,
+        .form-select {
+            font-size: 0.9rem;
+            min-height: 40px;
+        }
+
+        .edit-disease-card .card-header {
+            padding: var(--space-3) var(--space-4);
+            font-size: 0.9rem;
+        }
+
+        .section-title {
+            font-size: 1rem;
+        }
+
+        .existing-image-card img {
+            height: 70px;
+        }
+
+        .image-actions {
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+    }
+</style>
+{% endblock %}

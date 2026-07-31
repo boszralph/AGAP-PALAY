@@ -1,0 +1,9 @@
+﻿env1/ 
+venv/ 
+static/uploads/ 
+__pycache__/ 
+*.pyc 
+.vs/ 
+*.log 
+*.h5
+model/rice_disease_models.h5

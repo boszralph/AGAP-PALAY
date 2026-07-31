@@ -1,0 +1,844 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-4">
+
+    <!-- ============================================================
+    PAGE HEADER
+    ============================================================ -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <h1 class="page-title">
+            <i class="fas fa-clipboard-check me-2 text-primary"></i>{{ 'Scan Result' | translate }}
+        </h1>
+        <span class="text-muted d-none d-sm-inline">{{ scan.created_at.strftime('%B %d, %Y %I:%M %p') }}</span>
+    </div>
+
+    <!-- ============================================================
+    RESULT CARD
+    ============================================================ -->
+    <div class="card shadow-sm border-0 result-card">
+
+        <!-- Header -->
+        <div class="card-header result-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <i class="fas fa-leaf me-1 text-primary"></i>
+                <span class="result-disease-name">{{ scan.disease_name or scan.predicted_name }}</span>
+                {% if not scan.disease_name %}
+                <span class="badge bg-warning text-dark ms-2">{{ 'New Disease' | translate }}</span>
+                {% endif %}
+            </div>
+           
+        </div>
+
+        <!-- Card Body -->
+        <div class="card-body">
+            <div class="row g-4 g-md-5">
+
+                <!-- Image Column -->
+                <div class="col-md-4">
+                    <div class="result-image-wrapper" data-image="{{ url_for('static', filename=scan.image_path.replace('static/', '')) }}">
+                        <img src="{{ url_for('static', filename=scan.image_path.replace('static/', '')) }}"
+                             class="img-fluid rounded result-image"
+                             alt="{{ 'Scanned Leaf' | translate }}"
+                             loading="lazy">
+                        <div class="image-overlay">
+                            <i class="fas fa-search-plus"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Details Column -->
+                <div class="col-md-8">
+                    <div class="result-details">
+
+                        <!-- Meta info -->
+                        <div class="result-meta-grid">
+                            <div class="result-meta-item">
+                                <i class="fas fa-map-pin"></i>
+                                <span><strong>{{ 'Location' | translate }}:</strong> {{ scan.location or ('Not specified' | translate) }}</span>
+                            </div>
+                            <div class="result-meta-item">
+                                <i class="fas fa-calendar-alt"></i>
+                                <span><strong>{{ 'Date' | translate }}:</strong> {{ scan.created_at.strftime('%B %d, %Y %I:%M %p') }}</span>
+                            </div>
+                            <div class="result-meta-item">
+                                <i class="fas fa-percent"></i>
+                                <span><strong>{{ 'Confidence' | translate }}:</strong> {{ "%.1f"|format(scan.confidence*100) }}%</span>
+                            </div>
+                        </div>
+
+                        <hr class="result-divider">
+
+                        <!-- ============================================================
+                        SPECIAL CASES & FALLBACK
+                        ============================================================ -->
+                        {% set disease = scan.disease_name or scan.predicted_name %}
+                        {% set disease_lower = disease.lower() if disease else '' %}
+
+                        {% if disease_lower in ['healthy leaf', 'not rice leaf', 'insect damage'] %}
+
+                        {% if disease_lower == 'healthy leaf' %}
+                        <div class="persistent-message persistent-success mt-2">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <strong>{{ 'Your rice leaf is healthy!' | translate }}</strong>
+                            <p class="mt-2 mb-0">{{ 'No disease detected. Continue maintaining good agricultural practices.' | translate }}</p>
+                        </div>
+                        {% elif disease_lower == 'not rice leaf' %}
+                        <div class="persistent-message persistent-warning mt-2">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>{{ 'This image does not appear to be a rice leaf.' | translate }}</strong>
+                            <p class="mt-2 mb-0">{{ 'Please upload a clear image of a rice leaf for accurate disease detection.' | translate }}</p>
+                        </div>
+                        {% elif disease_lower == 'insect damage' %}
+                        <div class="persistent-message persistent-warning mt-2">
+                            <i class="fas fa-bug me-2"></i>
+                            <strong>{{ 'Insect damage detected on this leaf.' | translate }}</strong>
+                            <p class="mt-2 mb-0">{{ 'Apply appropriate insecticides or use biological control methods. Remove severely damaged plants to prevent spread.' | translate }}</p>
+                        </div>
+                        {% endif %}
+
+                        {% elif not scan.description or scan.description|trim == '' %}
+                        <div class="persistent-message persistent-info mt-2">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {{ 'Detailed information for this disease is not yet available in our library.' | translate }}
+                            {% if session.role == 'admin' %}
+                            <a href="{{ url_for('admin_disease_add') }}" class="alert-link">{{ 'Add it now' | translate }}</a>.
+                            {% endif %}
+                        </div>
+
+                        <!-- ============================================================
+                        REGULAR DISEASE
+                        ============================================================ -->
+                        {% else %}
+
+                        <div class="result-info-section">
+                            <h5 class="info-section-title"><i class="fas fa-align-left me-2"></i>{{ 'Description' | translate }}</h5>
+                            <p class="info-section-content">{{ scan.description }}</p>
+                        </div>
+
+                        <div class="treatment-box mt-3">
+                            <h5 class="info-section-title"><i class="fas fa-pills me-2"></i>{{ 'Treatment' | translate }}</h5>
+                            <p class="info-section-content">{{ scan.treatment }}</p>
+                        </div>
+
+                        <div class="mt-3">
+                            <button class="toggle-details-btn" type="button" data-bs-toggle="collapse" data-bs-target="#moreDetails" aria-expanded="false" aria-controls="moreDetails">
+                                <i class="fas fa-chevron-down me-1"></i> {{ 'View More Details' | translate }}
+                            </button>
+
+                            <div class="collapse mt-3" id="moreDetails">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="info-box">
+                                            <h5 class="info-section-title"><i class="fas fa-notes-medical me-2"></i>{{ 'Symptoms' | translate }}</h5>
+                                            <p class="info-section-content">{{ scan.symptoms }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="info-box">
+                                            <h5 class="info-section-title"><i class="fas fa-microscope me-2"></i>{{ 'Causes' | translate }}</h5>
+                                            <p class="info-section-content">{{ scan.causes }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="info-box">
+                                            <h5 class="info-section-title"><i class="fas fa-shield-alt me-2"></i>{{ 'Prevention' | translate }}</h5>
+                                            <p class="info-section-content">{{ scan.prevention }}</p>
+                                        </div>
+                                    </div>
+                                    {% if images %}
+                                    <div class="col-12">
+                                        <div class="info-box" style="border-left-color: var(--secondary);">
+                                            <h5 class="info-section-title"><i class="fas fa-images me-2"></i>{{ 'Disease Images' | translate }}</h5>
+                                            <div class="row g-2 mt-2">
+                                                {% for img in images %}
+                                                <div class="col-4 col-md-3">
+                                                    <img src="{{ url_for('static', filename='uploads/' + img.image_path) }}"
+                                                         class="img-fluid rounded disease-thumbnail"
+                                                         alt="{{ 'Disease image' | translate }}"
+                                                         loading="lazy"
+                                                         data-image="{{ url_for('static', filename='uploads/' + img.image_path) }}">
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        <!-- ============================================================
+                        END RESULT CONTENT
+                        ============================================================ -->
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    ACTION BUTTONS
+    ============================================================ -->
+    <div class="d-flex flex-wrap gap-3 mt-4 justify-content-center justify-content-md-start">
+        <a href="{{ url_for('scan') }}" class="btn btn-primary">
+            <i class="fas fa-camera me-2"></i>{{ 'Scan Another' | translate }}
+        </a>
+        <a href="{{ url_for('history') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-history me-2"></i>{{ 'View History' | translate }}
+        </a>
+    </div>
+
+</div>
+
+<!-- ============================================================
+CUSTOM LIGHTBOX – close button now overlays the image itself
+============================================================ -->
+<div id="customLightbox" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:999999; justify-content:center; align-items:center; backdrop-filter:blur(6px);">
+    <!-- Wrapper: relative to position the close button over the image -->
+    <div style="position:relative; display:inline-block; max-width:90%; max-height:90%;">
+        <img id="lightboxImage" src="" style="display:block; max-width:100%; max-height:90vh; object-fit:contain; border-radius:8px; box-shadow:0 20px 60px rgba(0,0,0,0.6); background:#fff; padding:4px;">
+        <!-- Close button – now positioned over the top‑right of the image -->
+        <span id="lightboxClose" style="position:absolute; top:10px; right:10px; font-size:30px; color:white; cursor:pointer; z-index:9999999; font-weight:300; transition:transform 0.2s; user-select:none; background:rgba(0,0,0,0.6); border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; line-height:1; border:2px solid rgba(255,255,255,0.3);">
+            &times;
+        </span>
+    </div>
+</div>
+
+<!-- ============================================================
+STYLES – fully responsive, dark mode fully supported
+============================================================ -->
+<style>
+    :root {
+        --primary: #1e7a3a;
+        --accent: #d97706;
+        --text: #0d1117;
+        --text-secondary: #57606a;
+        --border: #e9edf2;
+        --card-bg: #ffffff;
+        --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+        --shadow-md: 0 8px 30px rgba(0,0,0,0.06);
+        --gradient-primary: linear-gradient(135deg, #1e7a3a, #2e7d32);
+    }
+
+    body.dark-mode {
+        --text: #f0f6fc;
+        --text-secondary: #8b949e;
+        --border: #30363d;
+        --card-bg: #161b22;
+        --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+        --shadow-md: 0 8px 30px rgba(0,0,0,0.3);
+    }
+
+    .page-title {
+        font-family: 'Inter', system-ui, sans-serif;
+        font-weight: 700;
+        font-size: 1.5rem;
+        letter-spacing: -0.02em;
+        color: var(--text);
+        margin: 0;
+    }
+
+    .result-card {
+        border-radius: 16px;
+        overflow: hidden;
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-sm);
+        transition: box-shadow 0.2s ease;
+    }
+
+        .result-card:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+    .result-card-header {
+        padding: 0.75rem 1rem;
+        background: rgba(30, 122, 58, 0.04);
+        border-bottom: 1px solid var(--border);
+        font-weight: 600;
+    }
+
+    body.dark-mode .result-card-header {
+        background: rgba(30, 122, 58, 0.08);
+    }
+
+    .result-disease-name {
+        font-weight: 700;
+        font-size: 1.25rem;
+        letter-spacing: -0.02em;
+        color: var(--text);
+    }
+
+    .confidence-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-weight: 600;
+        background: rgba(30, 122, 58, 0.10);
+        color: var(--primary);
+    }
+
+    body.dark-mode .confidence-badge {
+        background: rgba(30, 122, 58, 0.2);
+        color: #4caf50;
+    }
+
+    /* ── image with overlay ── */
+    .result-image-wrapper {
+        position: relative;
+        border-radius: 12px;
+        overflow: hidden;
+        background: rgba(30, 122, 58, 0.04);
+        box-shadow: var(--shadow-sm);
+        cursor: pointer;
+    }
+
+        .result-image-wrapper .image-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.25s ease;
+            color: #fff;
+            font-size: 2.5rem;
+        }
+
+        .result-image-wrapper:hover .image-overlay {
+            opacity: 1;
+        }
+
+    .result-image {
+        width: 100%;
+        height: auto;
+        display: block;
+        transition: transform 0.3s ease;
+    }
+
+    .result-image-wrapper:hover .result-image {
+        transform: scale(1.02);
+    }
+
+    /* ── meta grid ── */
+    .result-meta-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 0.5rem 1rem;
+        background: rgba(30, 122, 58, 0.03);
+        padding: 0.75rem 1rem;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+    }
+
+    body.dark-mode .result-meta-grid {
+        background: rgba(30, 122, 58, 0.06);
+    }
+
+    .result-meta-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+        color: var(--text);
+    }
+
+        .result-meta-item i {
+            width: 20px;
+            color: var(--primary);
+            text-align: center;
+            font-size: 0.95rem;
+            flex-shrink: 0;
+        }
+
+    body.dark-mode .result-meta-item i {
+        color: #4caf50;
+    }
+
+    .result-divider {
+        border: 0;
+        border-top: 1px solid var(--border);
+        margin: 0.75rem 0;
+    }
+
+    /* ── info sections ── */
+    .info-section-title {
+        font-weight: 700;
+        font-size: 1rem;
+        color: var(--primary);
+        margin-bottom: 0.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    body.dark-mode .info-section-title {
+        color: #4caf50;
+    }
+
+    .info-section-content {
+        font-size: 0.95rem;
+        line-height: 1.7;
+        color: var(--text);
+        margin-bottom: 0;
+        padding-left: 2px;
+    }
+
+    /* ── treatment box ── */
+    .treatment-box {
+        padding: 0.75rem 1rem;
+        background: rgba(245, 158, 11, 0.06);
+        border-radius: 12px;
+        border-left: 4px solid var(--accent);
+        transition: background 0.2s;
+    }
+
+        .treatment-box .info-section-title {
+            color: var(--accent);
+        }
+
+        .treatment-box:hover {
+            background: rgba(245, 158, 11, 0.10);
+        }
+
+    body.dark-mode .treatment-box {
+        background: rgba(245, 158, 11, 0.08);
+        border-left-color: #f59e0b;
+    }
+
+        body.dark-mode .treatment-box .info-section-title {
+            color: #fbbf24;
+        }
+
+    /* ── info boxes ── */
+    .info-box {
+        padding: 0.75rem 1rem;
+        background: rgba(30, 122, 58, 0.04);
+        border-radius: 12px;
+        border-left: 4px solid var(--primary);
+        height: 100%;
+        transition: background 0.2s;
+    }
+
+        .info-box:hover {
+            background: rgba(30, 122, 58, 0.07);
+        }
+
+        .info-box .info-section-title {
+            color: var(--primary);
+            font-size: 0.95rem;
+        }
+
+        .info-box .info-section-content {
+            font-size: 0.9rem;
+        }
+
+    body.dark-mode .info-box {
+        background: rgba(30, 122, 58, 0.08);
+        border-left-color: #4caf50;
+    }
+
+        body.dark-mode .info-box:hover {
+            background: rgba(30, 122, 58, 0.12);
+        }
+
+    /* ── toggle button ── */
+    .toggle-details-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--primary);
+        border: 1.5px solid var(--primary);
+        background: transparent;
+        transition: all 0.15s ease;
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+        font-size: 0.9rem;
+        border-radius: 12px;
+        min-height: 40px;
+        cursor: pointer;
+        background: rgba(255,255,255,0.3);
+        backdrop-filter: blur(2px);
+    }
+
+        .toggle-details-btn:hover {
+            background: var(--gradient-primary);
+            color: white;
+            border-color: transparent;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(30, 122, 58, 0.25);
+        }
+
+        .toggle-details-btn[aria-expanded="true"] i {
+            transform: rotate(180deg);
+        }
+
+        .toggle-details-btn i {
+            transition: transform 0.15s ease;
+        }
+
+    body.dark-mode .toggle-details-btn {
+        color: #4caf50;
+        border-color: #4caf50;
+        background: rgba(30, 122, 58, 0.08);
+    }
+
+        body.dark-mode .toggle-details-btn:hover {
+            background: var(--gradient-primary);
+            color: white;
+            border-color: transparent;
+        }
+
+    /* ── persistent messages ── */
+    .persistent-message {
+        border-radius: 12px;
+        padding: 0.75rem 1rem;
+        border: 1px solid transparent;
+        margin-bottom: 0;
+        display: block;
+        width: 100%;
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+
+    .persistent-success {
+        background: #d1e7dd;
+        color: #0a3622;
+        border-color: #a3cfbb;
+    }
+
+    .persistent-warning {
+        background: #fff3cd;
+        color: #664d03;
+        border-color: #ffe69c;
+    }
+
+    .persistent-info {
+        background: #cfe2ff;
+        color: #055160;
+        border-color: #b8e2f0;
+    }
+
+    body.dark-mode .persistent-success {
+        background: #0d2b1f;
+        color: #b8e6d0;
+        border-color: #1e4d3a;
+    }
+
+    body.dark-mode .persistent-warning {
+        background: #2b240d;
+        color: #f0d99e;
+        border-color: #4d3a1e;
+    }
+
+    body.dark-mode .persistent-info {
+        background: #0d1f2b;
+        color: #b0d4e8;
+        border-color: #1e3a4d;
+    }
+
+    /* ── disease thumbnails ── */
+    .disease-thumbnail {
+        width: 100%;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        transition: transform 0.15s ease, border-color 0.15s ease;
+        cursor: pointer;
+    }
+
+        .disease-thumbnail:hover {
+            transform: scale(1.05);
+            border-color: var(--primary);
+        }
+
+    body.dark-mode .disease-thumbnail:hover {
+        border-color: #4caf50;
+    }
+
+    /* ── buttons ── */
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: all 0.15s ease;
+        border: none;
+        cursor: pointer;
+        text-decoration: none;
+        line-height: 1.5;
+        min-height: 46px;
+    }
+
+    .btn-primary {
+        background: var(--gradient-primary);
+        color: white;
+        box-shadow: 0 2px 8px rgba(30, 122, 58, 0.25);
+    }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(30, 122, 58, 0.35);
+            color: white;
+        }
+
+    .btn-outline-secondary {
+        background: transparent;
+        color: var(--text-secondary);
+        border: 1.5px solid var(--border);
+    }
+
+        .btn-outline-secondary:hover {
+            background: var(--border);
+            color: var(--text);
+            transform: translateY(-2px);
+        }
+
+    body.dark-mode .btn-outline-secondary {
+        color: #8b949e;
+        border-color: #30363d;
+    }
+
+        body.dark-mode .btn-outline-secondary:hover {
+            background: #21262d;
+            color: #f0f6fc;
+        }
+
+    /* ================================================================
+       CUSTOM LIGHTBOX – close button now overlays the image
+       ================================================================ */
+    #customLightbox {
+        display: none; /* hidden by default, shown via JS */
+        z-index: 999999 !important;
+    }
+
+        #customLightbox.show {
+            display: flex !important;
+        }
+
+    #lightboxClose {
+        z-index: 9999999 !important;
+    }
+
+        #lightboxClose:hover {
+            transform: scale(1.15);
+            background: rgba(255,255,255,0.3);
+            border-color: white;
+        }
+
+    /* ================================================================
+       RESPONSIVE
+       ================================================================ */
+    @media (max-width: 575.98px) {
+        .page-title {
+            font-size: 1.25rem;
+        }
+
+        .result-card-header {
+            flex-direction: column;
+            align-items: flex-start !important;
+            padding: 0.75rem;
+        }
+
+        .result-disease-name {
+            font-size: 1.1rem;
+        }
+
+        .confidence-badge {
+            font-size: 0.7rem;
+            padding: 0.1rem 0.5rem;
+        }
+
+        .result-meta-grid {
+            grid-template-columns: 1fr;
+            gap: 0.25rem;
+            padding: 0.5rem 0.75rem;
+        }
+
+        .result-meta-item {
+            font-size: 0.85rem;
+        }
+
+        .result-image-wrapper {
+            max-width: 100%;
+            margin-bottom: 0.75rem;
+        }
+
+        .info-box {
+            padding: 0.5rem 0.75rem;
+        }
+
+        .btn {
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+            min-height: 40px;
+            flex: 1;
+        }
+
+        .toggle-details-btn {
+            width: 100%;
+            justify-content: center;
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+            min-height: 38px;
+        }
+
+        .treatment-box {
+            padding: 0.5rem 0.75rem;
+        }
+
+        .disease-thumbnail {
+            height: 70px;
+        }
+
+        .info-section-title {
+            font-size: 0.9rem;
+        }
+
+        .info-section-content {
+            font-size: 0.85rem;
+        }
+
+        .persistent-message {
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+        }
+
+        .result-card .card-body {
+            padding: 0.75rem;
+        }
+
+        /* Lightbox adjustments for small screens */
+        #lightboxClose {
+            width: 36px;
+            height: 36px;
+            font-size: 24px;
+            top: 6px;
+            right: 6px;
+        }
+
+        #customLightbox img {
+            max-width: 95%;
+            max-height: 80%;
+        }
+    }
+
+    @media (min-width: 576px) and (max-width: 767.98px) {
+        .result-disease-name {
+            font-size: 1.3rem;
+        }
+
+        .result-meta-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .disease-thumbnail {
+            height: 80px;
+        }
+
+        .result-card .card-body {
+            padding: 1rem;
+        }
+    }
+
+    @media (min-width: 768px) {
+        .page-title {
+            font-size: 1.75rem;
+        }
+
+        .result-disease-name {
+            font-size: 1.5rem;
+        }
+
+        .result-card-header {
+            padding: 1rem 1.5rem;
+        }
+
+        .result-card .card-body {
+            padding: 1.5rem;
+        }
+
+        .result-meta-grid {
+            padding: 0.75rem 1.5rem;
+        }
+    }
+</style>
+
+<!-- ============================================================
+SCRIPTS – lightbox logic + persistent message protection
+============================================================ -->
+<script>
+    (function () {
+        // ---- Custom Lightbox ----
+        const lightbox = document.getElementById('customLightbox');
+        const lightboxImg = document.getElementById('lightboxImage');
+        const closeBtn = document.getElementById('lightboxClose');
+
+        // Helper to open lightbox
+        function openLightbox(src) {
+            if (!src) return;
+            lightboxImg.src = src;
+            lightbox.classList.add('show');
+            document.body.style.overflow = 'hidden'; // prevent background scroll
+        }
+
+        // Helper to close lightbox
+        function closeLightbox() {
+            lightbox.classList.remove('show');
+            lightboxImg.src = '';
+            document.body.style.overflow = '';
+        }
+
+        // Click on any element with data-image attribute
+        document.addEventListener('click', function (e) {
+            const target = e.target.closest('[data-image]');
+            if (target) {
+                e.preventDefault();
+                const src = target.getAttribute('data-image');
+                openLightbox(src);
+            }
+        });
+
+        // Close on × button
+        closeBtn.addEventListener('click', closeLightbox);
+
+        // Close on backdrop click (click on the lightbox background, not the image)
+        lightbox.addEventListener('click', function (e) {
+            if (e.target === lightbox) {
+                closeLightbox();
+            }
+        });
+
+        // Close on ESC key
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && lightbox.classList.contains('show')) {
+                closeLightbox();
+            }
+        });
+
+        // ---- Persistent messages (remove any alert classes) ----
+        document.addEventListener('DOMContentLoaded', function () {
+            const persistentElements = document.querySelectorAll('.persistent-message');
+            persistentElements.forEach(function (el) {
+                el.classList.remove('alert');
+                // If Bootstrap Alert instance exists, dispose it
+                if (typeof bootstrap !== 'undefined' && bootstrap.Alert) {
+                    const alertInstance = bootstrap.Alert.getInstance(el);
+                    if (alertInstance) {
+                        alertInstance.dispose();
+                    }
+                }
+            });
+        });
+
+    })();
+</script>
+{% endblock %}

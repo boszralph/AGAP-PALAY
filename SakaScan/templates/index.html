@@ -1,0 +1,632 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-4">
+
+    <!-- Hero Section -->
+    <div class="hero-section row align-items-center g-4 mb-5">
+        <div class="col-md-6">
+            <!-- ✅ FIX: "Welcome to" wraps freely, but "AGAP‑PALAY" uses a non-breaking hyphen + nowrap span -->
+            <h1 class="hero-title">Welcome to <span style="white-space: nowrap;">AGAP‑PALAY</span></h1>
+            <p class="hero-subtitle">{{ 'AI-Powered Rice Disease Detection for Filipino Farmers' | translate }}</p>
+            <p class="hero-description">
+                {{ 'Upload a photo of your rice leaf and get instant disease identification, treatment recommendations, and weather-based risk alerts.' | translate }}
+            </p>
+            <div class="hero-buttons">
+                {% if not session.user_id %}
+                <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">{{ 'Get Started' | translate }}</a>
+                <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-lg">{{ 'Login' | translate }}</a>
+                {% else %}
+                <a href="{{ url_for('scan') }}" class="btn btn-primary btn-lg">{{ 'Scan Now' | translate }}</a>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="hero-image-wrapper">
+                <img src="{{ url_for('static', filename='images/rice_field.jpg') }}" class="img-fluid rounded hero-image" alt="{{ 'Rice Field' | translate }}">
+                <div class="hero-image-overlay"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Section -->
+    <div class="row g-4 mb-5">
+        <div class="col-md-4">
+            <div class="feature-card text-center">
+                <div class="feature-icon">
+                    <i class="fas fa-leaf"></i>
+                </div>
+                <h3 class="feature-title">{{ 'AI Detection' | translate }}</h3>
+                <p class="feature-description">{{ 'Identify 5 major rice diseases with high accuracy.' | translate }}</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="feature-card text-center">
+                <div class="feature-icon">
+                    <i class="fas fa-cloud-sun"></i>
+                </div>
+                <h3 class="feature-title">{{ 'Weather Alerts' | translate }}</h3>
+                <p class="feature-description">{{ 'Get disease risk warnings based on humidity.' | translate }}</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="feature-card text-center">
+                <div class="feature-icon">
+                    <i class="fas fa-history"></i>
+                </div>
+                <h3 class="feature-title">{{ 'Scan History' | translate }}</h3>
+                <p class="feature-description">{{ 'Track your field health over time.' | translate }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Diseases Section -->
+    {% if recent_diseases %}
+    <div class="row mt-5">
+        <div class="col-12">
+            <h2 class="section-title text-center mb-4">{{ 'Recently Added Diseases' | translate }}</h2>
+        </div>
+        {% for disease in recent_diseases %}
+        <div class="col-md-4 col-lg-2 col-6 mb-3">
+            <div class="card disease-mini-card text-center h-100">
+                <div class="disease-mini-image">
+                    {% if disease.image_path %}
+                    <img src="{{ url_for('static', filename='uploads/' + disease.image_path) }}" alt="{{ disease.name }}" loading="lazy">
+                    {% else %}
+                    <i class="fas fa-leaf"></i>
+                    {% endif %}
+                </div>
+                <div class="card-body p-2">
+                    <h6 class="card-title disease-mini-title">{{ disease.name }}</h6>
+                    <a href="{{ url_for('disease_detail', disease_id=disease.id) }}" class="btn btn-sm btn-outline-primary">
+                        {{ 'View' | translate }}
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- ============================================================ -->
+    <!--  FOOTER (simplified with Disclaimer)                          -->
+    <!-- ============================================================ -->
+    <footer class="footer mt-5 pt-5 pb-3">
+        <div class="row g-4">
+            <!-- About -->
+            <div class="col-md-6">
+                <!-- ✅ FIX: Applied nowrap to brand name in heading -->
+                <h5 class="footer-heading">About <span style="white-space: nowrap;">AGAP‑PALAY</span></h5>
+                <p class="footer-text">
+                    {{ 'AGAP-PALAY is an AI-powered platform that helps Filipino farmers detect rice diseases early, providing treatment recommendations and weather-based risk alerts to improve crop yield.' | translate }}
+                </p>
+            </div>
+            <!-- Disclaimer -->
+            <div class="col-md-6">
+                <h5 class="footer-heading">{{ 'Disclaimer' | translate }}</h5>
+                <p class="footer-text small">
+                    {{ 'The AI predictions are intended to assist users and should not replace professional agricultural advice. Always consult your local agricultural office for severe crop diseases.' | translate }}
+                </p>
+            </div>
+        </div>
+        <!-- Copyright -->
+        <div class="footer-divider"></div>
+        <div class="footer-copyright text-center">
+            <!-- ✅ FIX: Applied nowrap to brand name in copyright -->
+            <span>&copy; 2026 <span style="white-space: nowrap;">AGAP‑PALAY</span>. {{ 'All rights reserved.' | translate }}</span>
+        </div>
+    </footer>
+
+</div>
+
+<!-- Page-specific fine-tuning -->
+<style>
+    /* Hero Section */
+    .hero-section {
+        padding: var(--space-5) 0;
+        position: relative;
+    }
+
+    .hero-title {
+        font-family: var(--font-heading);
+        font-weight: 800;
+        font-size: 3rem;
+        letter-spacing: -0.03em;
+        color: var(--text);
+        margin-bottom: var(--space-2);
+        line-height: 1.1;
+        /* ✅ Allow "Welcome to" to wrap naturally */
+        word-wrap: break-word;
+    }
+
+    .hero-subtitle {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: var(--primary);
+        margin-bottom: var(--space-3);
+        word-break: break-word;
+    }
+
+    .hero-description {
+        font-size: 1.05rem;
+        color: var(--text-secondary);
+        max-width: 90%;
+        margin-bottom: var(--space-4);
+        line-height: 1.7;
+    }
+
+    .hero-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-3);
+    }
+
+        .hero-buttons .btn {
+            min-height: 52px;
+            padding: var(--space-2) var(--space-6);
+            font-size: 1.05rem;
+            font-weight: 600;
+            border-radius: var(--radius-md);
+        }
+
+    .btn-primary {
+        background: var(--gradient-primary);
+        color: white;
+        box-shadow: 0 4px 16px rgba(30, 122, 58, 0.3);
+        border: none;
+    }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 24px rgba(30, 122, 58, 0.4);
+            color: white;
+        }
+
+    .btn-outline-primary {
+        color: var(--primary);
+        border: 2px solid var(--primary);
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(2px);
+        transition: all var(--transition-fast);
+    }
+
+        .btn-outline-primary:hover {
+            background: var(--gradient-primary);
+            color: white;
+            border-color: transparent;
+            transform: translateY(-3px);
+            box-shadow: 0 4px 16px rgba(30, 122, 58, 0.25);
+        }
+
+    .hero-image-wrapper {
+        position: relative;
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        box-shadow: var(--shadow-lg);
+    }
+
+    .hero-image {
+        width: 100%;
+        height: auto;
+        display: block;
+        transition: transform var(--transition-slow);
+    }
+
+    .hero-image-wrapper:hover .hero-image {
+        transform: scale(1.02);
+    }
+
+    .hero-image-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, rgba(30, 122, 58, 0.1) 0%, rgba(15, 92, 42, 0.05) 100%);
+        pointer-events: none;
+    }
+
+    /* Features */
+    .feature-card {
+        padding: var(--space-5) var(--space-4);
+        border-radius: var(--radius-lg);
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-sm);
+        transition: all var(--transition-base);
+        height: 100%;
+    }
+
+        .feature-card:hover {
+            transform: translateY(-6px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--primary);
+        }
+
+    .feature-icon {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background: var(--gradient-primary-subtle);
+        color: var(--primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        margin: 0 auto var(--space-3);
+        transition: all var(--transition-fast);
+    }
+
+    .feature-card:hover .feature-icon {
+        background: var(--gradient-primary);
+        color: white;
+        transform: scale(1.06);
+    }
+
+    .feature-title {
+        font-family: var(--font-heading);
+        font-weight: 700;
+        font-size: 1.25rem;
+        color: var(--text);
+        margin-bottom: var(--space-2);
+    }
+
+    .feature-description {
+        font-size: 0.95rem;
+        color: var(--text-secondary);
+        margin-bottom: 0;
+        line-height: 1.6;
+    }
+
+    /* Section title */
+    .section-title {
+        font-family: var(--font-heading);
+        font-weight: 700;
+        font-size: 2rem;
+        color: var(--text);
+        letter-spacing: -0.02em;
+    }
+
+    /* Recent diseases mini cards */
+    .disease-mini-card {
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border);
+        background: var(--card-bg);
+        box-shadow: var(--shadow-sm);
+        transition: all var(--transition-base);
+        overflow: hidden;
+    }
+
+        .disease-mini-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--primary);
+        }
+
+    .disease-mini-image {
+        height: 100px;
+        background: var(--gradient-primary-subtle);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+
+        .disease-mini-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform var(--transition-slow);
+        }
+
+    .disease-mini-card:hover .disease-mini-image img {
+        transform: scale(1.05);
+    }
+
+    .disease-mini-image i {
+        font-size: 2.5rem;
+        color: var(--primary);
+        opacity: 0.3;
+    }
+
+    .disease-mini-title {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--text);
+        margin-bottom: var(--space-1);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .disease-mini-card .btn {
+        font-size: 0.7rem;
+        padding: var(--space-1) var(--space-3);
+        min-height: 30px;
+        border-radius: var(--radius-sm);
+    }
+
+    /* ============================================================ */
+    /*  FOOTER STYLES                                               */
+    /* ============================================================ */
+    .footer {
+        background: var(--gradient-primary);
+        color: rgba(255, 255, 255, 0.9);
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        padding: var(--space-6) var(--space-5) var(--space-4);
+        margin-top: var(--space-7);
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    .footer-heading {
+        font-family: var(--font-heading);
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: white;
+        margin-bottom: var(--space-3);
+        letter-spacing: -0.3px;
+    }
+
+    .footer-text {
+        font-size: 0.9rem;
+        line-height: 1.7;
+        opacity: 0.9;
+        max-width: 90%;
+    }
+
+    .footer-links {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+        .footer-links li {
+            margin-bottom: var(--space-2);
+        }
+
+        .footer-links a {
+            color: rgba(255, 255, 255, 0.85);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: all var(--transition-fast);
+        }
+
+            .footer-links a:hover {
+                color: white;
+                text-decoration: underline;
+                padding-left: var(--space-1);
+            }
+
+        .footer-links i {
+            width: 20px;
+            text-align: center;
+            opacity: 0.7;
+        }
+
+    .footer-social {
+        display: flex;
+        gap: var(--space-3);
+    }
+
+        .footer-social a {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.12);
+            color: white;
+            font-size: 1.1rem;
+            transition: all var(--transition-fast);
+            text-decoration: none;
+        }
+
+            .footer-social a:hover {
+                background: rgba(255, 255, 255, 0.25);
+                transform: translateY(-3px);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            }
+
+    .footer-divider {
+        border-top: 1px solid rgba(255, 255, 255, 0.15);
+        margin: var(--space-4) 0 var(--space-3);
+    }
+
+    .footer-copyright {
+        font-size: 0.85rem;
+        opacity: 0.8;
+        color: rgba(255, 255, 255, 0.8);
+    }
+
+    /* ================================================================
+       DARK MODE OVERRIDES – buttons now dark
+       ================================================================ */
+    body.dark-mode .btn-outline-primary {
+        background: rgba(0, 0, 0, 0.5);
+        color: #4caf50;
+        border-color: #4caf50;
+        backdrop-filter: blur(4px);
+    }
+
+        body.dark-mode .btn-outline-primary:hover {
+            background: linear-gradient(135deg, #1e7a3a, #2e7d32);
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 4px 16px rgba(30, 122, 58, 0.35);
+        }
+
+    body.dark-mode .btn-primary {
+        background: linear-gradient(135deg, #1e7a3a, #2e7d32);
+        color: white;
+        box-shadow: 0 4px 16px rgba(30, 122, 58, 0.3);
+    }
+
+        body.dark-mode .btn-primary:hover {
+            background: linear-gradient(135deg, #2e7d32, #1e7a3a);
+            box-shadow: 0 6px 24px rgba(30, 122, 58, 0.5);
+        }
+
+    body.dark-mode .disease-mini-card .btn-outline-primary {
+        background: rgba(0, 0, 0, 0.4);
+        color: #4caf50;
+        border-color: #4caf50;
+    }
+
+        body.dark-mode .disease-mini-card .btn-outline-primary:hover {
+            background: linear-gradient(135deg, #1e7a3a, #2e7d32);
+            color: white;
+            border-color: transparent;
+        }
+
+    body.dark-mode .footer {
+        background: linear-gradient(135deg, #0d2b1a, #1a4a2a);
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    body.dark-mode .footer-social a {
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+        body.dark-mode .footer-social a:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+    body.dark-mode .feature-card {
+        background: var(--card-bg);
+        border-color: var(--border);
+    }
+
+        body.dark-mode .feature-card:hover {
+            border-color: #4caf50;
+        }
+
+    body.dark-mode .disease-mini-card {
+        background: var(--card-bg);
+        border-color: var(--border);
+    }
+
+        body.dark-mode .disease-mini-card:hover {
+            border-color: #4caf50;
+        }
+
+    body.dark-mode .disease-mini-title {
+        color: #f0f6fc;
+    }
+
+    body.dark-mode .hero-title {
+        color: #f0f6fc;
+    }
+
+    body.dark-mode .hero-subtitle {
+        color: #4caf50;
+    }
+
+    body.dark-mode .hero-description {
+        color: #8b949e;
+    }
+
+    body.dark-mode .section-title {
+        color: #f0f6fc;
+    }
+
+    /* ================================================================
+       RESPONSIVE — Now properly fluid
+       ================================================================ */
+    @media (max-width: 576px) {
+        .hero-title {
+            font-size: 2.2rem;
+        }
+
+        .hero-subtitle {
+            font-size: 1.1rem;
+        }
+
+        .hero-description {
+            font-size: 0.95rem;
+            max-width: 100%;
+        }
+
+        .hero-buttons .btn {
+            min-height: 44px;
+            padding: var(--space-2) var(--space-4);
+            font-size: 0.9rem;
+        }
+
+        .hero-image-wrapper {
+            margin-top: var(--space-3);
+        }
+
+        .feature-card {
+            padding: var(--space-4) var(--space-3);
+        }
+
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            font-size: 1.6rem;
+        }
+
+        .feature-title {
+            font-size: 1.1rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+        }
+
+        .disease-mini-image {
+            height: 80px;
+        }
+
+        .disease-mini-title {
+            font-size: 0.75rem;
+        }
+
+        .disease-mini-card .btn {
+            font-size: 0.65rem;
+            padding: var(--space-1) var(--space-2);
+            min-height: 26px;
+        }
+
+        .footer {
+            padding: var(--space-4) var(--space-3);
+            border-radius: var(--radius-md) var(--radius-md) 0 0;
+        }
+
+        .footer-text {
+            max-width: 100%;
+        }
+
+        .footer-social {
+            justify-content: center;
+        }
+    }
+
+    @media (max-width: 400px) {
+        .hero-title {
+            font-size: 1.8rem;
+        }
+
+        .hero-subtitle {
+            font-size: 1rem;
+        }
+
+        .hero-buttons .btn {
+            min-height: 40px;
+            padding: var(--space-1) var(--space-3);
+            font-size: 0.85rem;
+        }
+    }
+
+    @media (min-width: 768px) {
+        .hero-title {
+            font-size: 3.5rem;
+        }
+
+        .hero-section {
+            padding: var(--space-7) 0;
+        }
+    }
+</style>
+{% endblock %}

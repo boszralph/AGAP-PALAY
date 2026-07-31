@@ -1,0 +1,327 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="row justify-content-center align-items-center min-vh-75">
+        <div class="col-lg-5 col-md-7 col-11">
+            <div class="card register-card">
+                <div class="card-header register-card-header">
+                    <i class="fas fa-user-plus me-2"></i>{{ 'Register' | translate }}
+                </div>
+                <div class="card-body register-card-body">
+                    <form method="post">
+
+                        <!-- First Name -->
+                        <div class="form-group mb-3">
+                            <label for="first_name" class="form-label">{{ 'First Name' | translate }} <span class="text-danger">*</span></label>
+                            <div class="input-icon-wrapper">
+                                <i class="fas fa-user input-icon"></i>
+                                <input type="text" class="form-control" id="first_name" name="first_name" placeholder="{{ 'Enter your first name' | translate }}" required>
+                            </div>
+                        </div>
+
+                        <!-- Middle Name -->
+                        <div class="form-group mb-3">
+                            <label for="middle_name" class="form-label">{{ 'Middle Name' | translate }}</label>
+                            <div class="input-icon-wrapper">
+                                <i class="fas fa-user input-icon"></i>
+                                <input type="text" class="form-control" id="middle_name" name="middle_name" placeholder="{{ 'Enter your middle name (optional)' | translate }}">
+                            </div>
+                        </div>
+
+                        <!-- Last Name -->
+                        <div class="form-group mb-3">
+                            <label for="last_name" class="form-label">{{ 'Last Name' | translate }} <span class="text-danger">*</span></label>
+                            <div class="input-icon-wrapper">
+                                <i class="fas fa-user input-icon"></i>
+                                <input type="text" class="form-control" id="last_name" name="last_name" placeholder="{{ 'Enter your last name' | translate }}" required>
+                            </div>
+                        </div>
+
+                        <!-- Suffix -->
+                        <div class="form-group mb-3">
+                            <label for="suffix" class="form-label">{{ 'Suffix' | translate }}</label>
+                            <div class="input-icon-wrapper">
+                                <i class="fas fa-tag input-icon"></i>
+                                <input type="text" class="form-control" id="suffix" name="suffix" placeholder="{{ 'e.g., Jr., Sr., III' | translate }}">
+                            </div>
+                            <div class="form-text">{{ 'Optional – for name extensions like Jr., Sr., II, III, etc.' | translate }}</div>
+                        </div>
+
+                        <!-- Email -->
+                        <div class="form-group mb-3">
+                            <label for="email" class="form-label">{{ 'Email Address' | translate }} <span class="text-danger">*</span></label>
+                            <div class="input-icon-wrapper">
+                                <i class="fas fa-envelope input-icon"></i>
+                                <input type="email" class="form-control" id="email" name="email" placeholder="{{ 'Enter your email' | translate }}" required>
+                            </div>
+                        </div>
+
+                        <!-- Password -->
+                        <div class="form-group mb-3">
+                            <label for="password" class="form-label">{{ 'Password' | translate }} <span class="text-danger">*</span></label>
+                            <div class="input-icon-wrapper">
+                                <i class="fas fa-lock input-icon"></i>
+                                <input type="password" class="form-control" id="password" name="password" placeholder="{{ 'Create a password' | translate }}" required>
+                            </div>
+                        </div>
+
+                        <!-- Confirm Password -->
+                        <div class="form-group mb-3">
+                            <label for="confirm_password" class="form-label">{{ 'Confirm Password' | translate }} <span class="text-danger">*</span></label>
+                            <div class="input-icon-wrapper">
+                                <i class="fas fa-check-circle input-icon"></i>
+                                <input type="password" class="form-control" id="confirm_password" name="confirm_password" placeholder="{{ 'Confirm your password' | translate }}" required>
+                            </div>
+                        </div>
+
+                        <!-- Language Preference -->
+                        <div class="form-group mb-3">
+                            <label for="language" class="form-label">{{ 'Preferred Language' | translate }}</label>
+                            <select class="form-select" id="language" name="language_preference">
+                                <option value="en" selected>{{ 'English' | translate }}</option>
+                                <option value="tl">{{ 'Tagalog' | translate }}</option>
+                            </select>
+                        </div>
+
+                        <!-- Barangay -->
+                        <div class="form-group mb-4">
+                            <label for="barangay" class="form-label">{{ 'Barangay (Alaminos City)' | translate }}</label>
+                            <select class="form-select" id="barangay" name="barangay">
+                                <option value="">{{ '-- Select your barangay --' | translate }}</option>
+                                {% for brgy in barangays %}
+                                <option value="{{ brgy }}">{{ brgy }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">{{ 'Selecting your barangay helps us display your location and provide barangay‑level disease risk alerts.' | translate }}</div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 py-2">
+                            <i class="fas fa-user-plus me-2"></i>{{ 'Register' | translate }}
+                        </button>
+                    </form>
+                    <p class="mt-3 text-center register-footer-text">
+                        {{ 'Already have an account?' | translate }} <a href="{{ url_for('login') }}" class="register-link">{{ 'Login here' | translate }}</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Page-specific fine-tuning -->
+<style>
+    .min-vh-75 {
+        min-height: 75vh;
+    }
+
+    .register-card {
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--border);
+        background: var(--card-bg);
+        box-shadow: var(--shadow-md);
+        overflow: hidden;
+        transition: box-shadow var(--transition-base);
+    }
+
+        .register-card:hover {
+            box-shadow: var(--shadow-lg);
+        }
+
+    .register-card-header {
+        background: var(--gradient-primary);
+        border-bottom: none;
+        padding: var(--space-4) var(--space-5);
+        font-weight: 700;
+        font-family: var(--font-heading);
+        font-size: 1.25rem;
+        color: white;
+        display: flex;
+        align-items: center;
+        letter-spacing: -0.3px;
+    }
+
+        .register-card-header i {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+    .register-card-body {
+        padding: var(--space-5);
+    }
+
+    .form-label {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-bottom: var(--space-1);
+        display: block;
+    }
+
+    .input-icon-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+
+        .input-icon-wrapper .input-icon {
+            position: absolute;
+            left: var(--space-3);
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            transition: color var(--transition-fast);
+        }
+
+        .input-icon-wrapper .form-control {
+            padding-left: calc(var(--space-3) + 1.8rem);
+            border-radius: var(--radius-md);
+            border: 1.5px solid var(--border);
+            background: var(--card-bg);
+            color: var(--text);
+            min-height: 46px;
+            transition: all var(--transition-fast);
+            font-size: 0.95rem;
+            width: 100%;
+        }
+
+            .input-icon-wrapper .form-control:focus {
+                border-color: var(--primary);
+                box-shadow: 0 0 0 4px rgba(30, 122, 58, 0.12);
+                outline: none;
+            }
+
+                .input-icon-wrapper .form-control:focus + .input-icon,
+                .input-icon-wrapper .form-control:focus ~ .input-icon {
+                    color: var(--primary);
+                }
+
+    .form-select {
+        border-radius: var(--radius-md);
+        border: 1.5px solid var(--border);
+        background: var(--card-bg);
+        color: var(--text);
+        padding: var(--space-2) var(--space-4);
+        min-height: 46px;
+        transition: all var(--transition-fast);
+        font-size: 0.95rem;
+        width: 100%;
+        appearance: auto;
+    }
+
+        .form-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(30, 122, 58, 0.12);
+            outline: none;
+        }
+
+    .form-text {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-top: var(--space-1);
+    }
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-2);
+        padding: var(--space-2) var(--space-5);
+        border-radius: var(--radius-md);
+        font-weight: 600;
+        font-size: 0.95rem;
+        transition: all var(--transition-fast);
+        border: none;
+        cursor: pointer;
+        text-decoration: none;
+        font-family: var(--font-family);
+        line-height: 1.5;
+        min-height: 46px;
+    }
+
+    .btn-primary {
+        background: var(--gradient-primary);
+        color: white;
+        box-shadow: 0 2px 8px rgba(30, 122, 58, 0.25);
+    }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(30, 122, 58, 0.35);
+            color: white;
+        }
+
+    .register-footer-text {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+    }
+
+    .register-link {
+        color: var(--primary);
+        font-weight: 600;
+        text-decoration: none;
+        transition: color var(--transition-fast);
+    }
+
+        .register-link:hover {
+            color: var(--primary-dark);
+            text-decoration: underline;
+        }
+
+    /* Dark mode */
+    body.dark-mode .register-card {
+        border-color: var(--border);
+        background: var(--card-bg);
+    }
+
+    body.dark-mode .register-card-header {
+        background: var(--gradient-primary);
+    }
+
+    body.dark-mode .input-icon-wrapper .form-control,
+    body.dark-mode .form-select {
+        background: var(--card-bg);
+        color: var(--text);
+        border-color: var(--border);
+    }
+
+        body.dark-mode .input-icon-wrapper .form-control:focus,
+        body.dark-mode .form-select:focus {
+            border-color: var(--primary-light);
+            box-shadow: 0 0 0 4px rgba(30, 122, 58, 0.2);
+        }
+
+    body.dark-mode .register-link {
+        color: var(--primary-light);
+    }
+
+        body.dark-mode .register-link:hover {
+            color: var(--primary);
+        }
+
+    /* Responsive */
+    @media (max-width: 576px) {
+        .min-vh-75 {
+            min-height: 70vh;
+        }
+
+        .register-card-body {
+            padding: var(--space-4);
+        }
+
+        .register-card-header {
+            font-size: 1.1rem;
+            padding: var(--space-3) var(--space-4);
+        }
+
+        .btn {
+            font-size: 0.9rem;
+            min-height: 42px;
+        }
+
+        .input-icon-wrapper .form-control,
+        .form-select {
+            font-size: 0.9rem;
+            min-height: 42px;
+        }
+    }
+</style>
+{% endblock %}

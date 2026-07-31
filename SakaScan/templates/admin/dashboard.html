@@ -1,0 +1,890 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-4">
+
+    <!-- ============================================================
+    PAGE HEADER
+    ============================================================ -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <h1 class="page-title">
+            <i class="fas fa-tachometer-alt me-2 text-primary"></i>{{ 'Admin Dashboard' | translate }}
+        </h1>
+        <span class="text-muted d-none d-sm-inline">{{ 'Overview of your platform' | translate }}</span>
+    </div>
+
+    <!-- ============================================================
+    STATISTICS CARDS – Glass‑morphism + micro‑interactions
+    ============================================================ -->
+    <div class="row g-3 g-md-4 mb-5">
+        <div class="col-6 col-xl-3">
+            <div class="stat-card stat-card-primary">
+                <div class="stat-icon"><i class="fas fa-users"></i></div>
+                <div class="stat-content">
+                    <div class="stat-label">{{ 'Farmers' | translate }}</div>
+                    <div class="stat-number">{{ total_users }}</div>
+                </div>
+                <a href="{{ url_for('admin_users') }}" class="stat-link" aria-label="View farmers">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="stat-card stat-card-success">
+                <div class="stat-icon"><i class="fas fa-camera"></i></div>
+                <div class="stat-content">
+                    <div class="stat-label">{{ 'Scans' | translate }}</div>
+                    <div class="stat-number">{{ total_scans }}</div>
+                </div>
+                <a href="#" class="stat-link" aria-label="View scans">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="stat-card stat-card-info">
+                <div class="stat-icon"><i class="fas fa-leaf"></i></div>
+                <div class="stat-content">
+                    <div class="stat-label">{{ 'Diseases' | translate }}</div>
+                    <div class="stat-number">{{ total_diseases }}</div>
+                </div>
+                <a href="{{ url_for('admin_diseases') }}" class="stat-link" aria-label="View diseases">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="stat-card stat-card-accent">
+                <div class="stat-icon"><i class="fas fa-chart-bar"></i></div>
+                <div class="stat-content">
+                    <div class="stat-label">{{ 'Reports' | translate }}</div>
+                    <div class="stat-number">{{ 'Analytics' | translate }}</div>
+                </div>
+                <a href="{{ url_for('admin_reports') }}" class="stat-link" aria-label="View reports">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    WEATHER ADVISORIES – Clean card‑based design
+    ============================================================ -->
+    <div class="card mb-4 shadow-sm border-0">
+        <div class="card-header bg-transparent d-flex align-items-center justify-content-between border-bottom">
+            <span class="fw-semibold">
+                <i class="fas fa-bullhorn me-2 text-primary"></i>{{ 'Recent Weather Advisories' | translate }}
+            </span>
+            <span class="badge bg-light text-secondary rounded-pill">{{ advisories|length }}</span>
+        </div>
+        <div class="card-body p-0">
+
+            <!-- Desktop: table -->
+            <div class="table-responsive d-none d-sm-block">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>{{ 'Message' | translate }}</th>
+                            <th>{{ 'Date' | translate }}</th>
+                            <th>{{ 'Time' | translate }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for adv in advisories %}
+                        <tr class="severity-row severity-{{ adv.severity }}">
+                            <td>
+                                <span class="severity-dot severity-{{ adv.severity }}"></span>
+                                {{ adv.message }}
+                            </td>
+                            <td class="text-muted small">{{ adv.created_at.strftime('%B %d, %Y') }}</td>
+                            <td class="text-muted small">{{ adv.created_at.strftime('%I:%M %p') }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox me-2"></i>{{ 'No advisories yet.' | translate }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile: stacked cards with severity icon (no text tag) -->
+            <div class="d-sm-none p-3">
+                {% for adv in advisories %}
+                <div class="advisory-card severity-{{ adv.severity }} mb-3 p-3 rounded-3">
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="severity-icon-wrapper severity-{{ adv.severity }}">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <div class="advisory-message">{{ adv.message }}</div>
+                            <div class="advisory-meta mt-1">
+                                <span class="advisory-date">{{ adv.created_at.strftime('%B %d, %Y') }}</span>
+                                <span class="advisory-time">{{ adv.created_at.strftime('%I:%M %p') }}</span>
+                            </div>
+                        </div>
+                        <!-- Severity tag removed -->
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-inbox me-2"></i>{{ 'No advisories yet.' | translate }}
+                </div>
+                {% endfor %}
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ============================================================
+    ACTIVITY LOGS – Clean timeline / card style
+    ============================================================ -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-transparent d-flex align-items-center justify-content-between border-bottom">
+            <span class="fw-semibold">
+                <i class="fas fa-history me-2 text-primary"></i>{{ 'Recent Activity' | translate }}
+            </span>
+            <span class="badge bg-light text-secondary rounded-pill">{{ logs|length }}</span>
+        </div>
+        <div class="card-body p-0">
+
+            <!-- Desktop: table -->
+            <div class="table-responsive d-none d-sm-block">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>{{ 'Description' | translate }}</th>
+                            <th>{{ 'Date' | translate }}</th>
+                            <th>{{ 'Time' | translate }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr>
+                            <td>
+                                <span class="activity-dot"></span>
+                                {{ log.description }}
+                            </td>
+                            <td class="text-muted small">{{ log.created_at.strftime('%B %d, %Y') }}</td>
+                            <td class="text-muted small">{{ log.created_at.strftime('%I:%M %p') }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox me-2"></i>{{ 'No activity logs yet.' | translate }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile: timeline cards -->
+            <div class="d-sm-none p-3">
+                {% for log in logs %}
+                <div class="activity-card d-flex align-items-start gap-3 py-3 border-bottom">
+                    <div class="activity-icon-wrapper">
+                        <i class="fas fa-circle-check"></i>
+                    </div>
+                    <div class="flex-grow-1 min-w-0">
+                        <div class="activity-description">{{ log.description }}</div>
+                        <div class="activity-meta mt-1">
+                            <span class="activity-date">{{ log.created_at.strftime('%B %d, %Y') }}</span>
+                            <span class="activity-time">{{ log.created_at.strftime('%I:%M %p') }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-inbox me-2"></i>{{ 'No activity logs yet.' | translate }}
+                </div>
+                {% endfor %}
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<!-- ============================================================
+STYLES – Modern, clean, fully responsive
+============================================================ -->
+<style>
+    /* ── variables (fallback) ── */
+    :root {
+        --font-heading: 'Inter', system-ui, -apple-system, sans-serif;
+        --radius-lg: 16px;
+        --radius-md: 12px;
+        --space-1: 0.25rem;
+        --space-2: 0.5rem;
+        --space-3: 0.75rem;
+        --space-4: 1rem;
+        --space-5: 1.5rem;
+        --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+        --shadow-md: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+        --transition-base: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        --transition-fast: 0.15s ease;
+        /* severity colors */
+        --severity-danger: #dc2626;
+        --severity-danger-bg: #fef2f2;
+        --severity-warning: #f59e0b;
+        --severity-warning-bg: #fffbeb;
+        --severity-info: #3b82f6;
+        --severity-info-bg: #eff6ff;
+    }
+
+    .page-title {
+        font-family: var(--font-heading);
+        font-weight: 700;
+        font-size: 1.5rem;
+        letter-spacing: -0.02em;
+        color: var(--text, #0d1117);
+        margin: 0;
+    }
+
+    /* ── STAT CARDS ── */
+    .stat-card {
+        position: relative;
+        border-radius: var(--radius-lg);
+        padding: var(--space-4) var(--space-4);
+        background: var(--card-bg, #ffffff);
+        border: 1px solid var(--border, #e9edf2);
+        box-shadow: var(--shadow-sm);
+        transition: all var(--transition-base);
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        overflow: hidden;
+        min-height: 88px;
+    }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            border-radius: 0 3px 3px 0;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-md);
+            border-color: transparent;
+        }
+
+        .stat-card .stat-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+            background: rgba(30, 122, 58, 0.10);
+            color: var(--primary, #1e7a3a);
+            transition: transform var(--transition-fast);
+        }
+
+        .stat-card:hover .stat-icon {
+            transform: scale(1.06);
+        }
+
+        .stat-card .stat-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .stat-card .stat-label {
+            font-size: 0.6rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--text-secondary, #57606a);
+            margin-bottom: 1px;
+        }
+
+        .stat-card .stat-number {
+            font-family: var(--font-heading);
+            font-size: 1.6rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            line-height: 1.2;
+            color: var(--text, #0d1117);
+        }
+
+    .stat-link {
+        position: absolute;
+        top: var(--space-3);
+        right: var(--space-3);
+        color: var(--text-muted, #8b949e);
+        font-size: 0.75rem;
+        opacity: 0;
+        transition: all var(--transition-fast);
+        transform: translateX(6px);
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--card-bg, #fff);
+        box-shadow: var(--shadow-sm);
+        text-decoration: none;
+    }
+
+    .stat-card:hover .stat-link {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    .stat-link:hover {
+        color: var(--primary, #1e7a3a);
+        background: rgba(30, 122, 58, 0.08);
+    }
+
+    /* stat variants */
+    .stat-card-primary::before {
+        background: var(--primary, #1e7a3a);
+    }
+
+    .stat-card-primary .stat-icon {
+        background: rgba(30, 122, 58, 0.10);
+        color: var(--primary, #1e7a3a);
+    }
+
+    .stat-card-primary .stat-number {
+        color: var(--primary, #1e7a3a);
+    }
+
+    .stat-card-success::before {
+        background: var(--primary, #1e7a3a);
+    }
+
+    .stat-card-success .stat-icon {
+        background: rgba(30, 122, 58, 0.10);
+        color: var(--primary, #1e7a3a);
+    }
+
+    .stat-card-success .stat-number {
+        color: var(--primary, #1e7a3a);
+    }
+
+    .stat-card-info::before {
+        background: #2563eb;
+    }
+
+    .stat-card-info .stat-icon {
+        background: rgba(37, 99, 235, 0.10);
+        color: #2563eb;
+    }
+
+    .stat-card-info .stat-number {
+        color: #2563eb;
+    }
+
+    .stat-card-accent::before {
+        background: #d97706;
+    }
+
+    .stat-card-accent .stat-icon {
+        background: rgba(217, 119, 6, 0.10);
+        color: #d97706;
+    }
+
+    .stat-card-accent .stat-number {
+        color: #d97706;
+    }
+
+    /* ── SEVERITY – desktop table rows ── */
+    .severity-row.severity-danger {
+        background: #fef2f2 !important;
+    }
+
+        .severity-row.severity-danger td {
+            color: #991b1b !important;
+        }
+
+    .severity-row.severity-warning {
+        background: #fffbeb !important;
+    }
+
+        .severity-row.severity-warning td {
+            color: #92400e !important;
+        }
+
+    .severity-row.severity-info {
+        background: #eff6ff !important;
+    }
+
+        .severity-row.severity-info td {
+            color: #1e40af !important;
+        }
+
+    .severity-dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 8px;
+        flex-shrink: 0;
+    }
+
+        .severity-dot.severity-danger {
+            background: #dc2626;
+        }
+
+        .severity-dot.severity-warning {
+            background: #f59e0b;
+        }
+
+        .severity-dot.severity-info {
+            background: #3b82f6;
+        }
+
+    /* ── MOBILE ADVISORY CARDS ── */
+    .advisory-card {
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border, #e9edf2);
+        background: var(--card-bg, #ffffff);
+        transition: all var(--transition-fast);
+        box-shadow: var(--shadow-sm);
+    }
+
+        .advisory-card:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .advisory-card.severity-danger {
+            border-left: 4px solid #dc2626;
+            background: #fef2f2;
+        }
+
+        .advisory-card.severity-warning {
+            border-left: 4px solid #f59e0b;
+            background: #fffbeb;
+        }
+
+        .advisory-card.severity-info {
+            border-left: 4px solid #3b82f6;
+            background: #eff6ff;
+        }
+
+    .severity-icon-wrapper {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 0.8rem;
+    }
+
+        .severity-icon-wrapper.severity-danger {
+            background: #dc2626;
+            color: #fff;
+        }
+
+        .severity-icon-wrapper.severity-warning {
+            background: #f59e0b;
+            color: #fff;
+        }
+
+        .severity-icon-wrapper.severity-info {
+            background: #3b82f6;
+            color: #fff;
+        }
+
+    .advisory-message {
+        font-weight: 500;
+        font-size: 0.9rem;
+        color: var(--text, #0d1117);
+        line-height: 1.4;
+        word-break: break-word;
+    }
+
+    .advisory-card.severity-danger .advisory-message {
+        color: #991b1b;
+    }
+
+    .advisory-card.severity-warning .advisory-message {
+        color: #92400e;
+    }
+
+    .advisory-card.severity-info .advisory-message {
+        color: #1e40af;
+    }
+
+    .advisory-meta {
+        font-size: 0.7rem;
+        color: var(--text-muted, #57606a);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1rem;
+    }
+
+    .advisory-card.severity-danger .advisory-meta {
+        color: #7f1d1d;
+    }
+
+    .advisory-card.severity-warning .advisory-meta {
+        color: #78350f;
+    }
+
+    .advisory-card.severity-info .advisory-meta {
+        color: #1e3a8a;
+    }
+
+    /* ── MOBILE ACTIVITY CARDS ── */
+    .activity-card {
+        background: var(--card-bg, #ffffff);
+        transition: background var(--transition-fast);
+    }
+
+        .activity-card:last-child {
+            border-bottom: none !important;
+        }
+
+        .activity-card:hover {
+            background: rgba(30, 122, 58, 0.03);
+        }
+
+    .activity-icon-wrapper {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        background: rgba(30, 122, 58, 0.08);
+        color: var(--primary, #1e7a3a);
+        font-size: 0.85rem;
+    }
+
+    .activity-description {
+        font-size: 0.9rem;
+        color: var(--text, #0d1117);
+        line-height: 1.4;
+        word-break: break-word;
+    }
+
+    .activity-meta {
+        font-size: 0.7rem;
+        color: var(--text-muted, #57606a);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1rem;
+    }
+
+    .activity-date::before {
+        content: '📅 ';
+        font-size: 0.65rem;
+    }
+
+    .activity-time::before {
+        content: '🕐 ';
+        font-size: 0.65rem;
+    }
+
+    /* ── desktop table enhancements ── */
+    .table thead th {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-secondary, #57606a);
+        border-bottom: 1px solid var(--border, #e9edf2);
+        padding: var(--space-3) var(--space-4);
+        background: transparent;
+    }
+
+    .table tbody td {
+        padding: var(--space-3) var(--space-4);
+        vertical-align: middle;
+        border-bottom: 1px solid var(--border-light, #f0f2f5);
+        font-size: 0.9rem;
+    }
+
+    .table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .table tbody tr:hover {
+        background: rgba(30, 122, 58, 0.04) !important;
+    }
+
+    .activity-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--primary, #1e7a3a);
+        margin-right: 10px;
+        flex-shrink: 0;
+    }
+
+    /* ── card headers ── */
+    .card-header {
+        padding: var(--space-3) var(--space-4);
+        font-size: 0.9rem;
+    }
+
+        .card-header .badge {
+            font-size: 0.65rem;
+            font-weight: 600;
+            padding: 0.2rem 0.7rem;
+        }
+
+    /* ── DARK MODE overrides ── */
+    body.dark-mode .stat-card {
+        background: var(--card-bg, #161b22);
+        border-color: var(--border, #30363d);
+    }
+
+        body.dark-mode .stat-card .stat-number {
+            color: #f0f6fc;
+        }
+
+        body.dark-mode .stat-card .stat-label {
+            color: #8b949e;
+        }
+
+    body.dark-mode .stat-link {
+        background: #161b22;
+        color: #8b949e;
+    }
+
+        body.dark-mode .stat-link:hover {
+            background: rgba(30, 122, 58, 0.15);
+            color: #58a6ff;
+        }
+
+    body.dark-mode .advisory-card {
+        background: #161b22 !important;
+        border-color: #30363d;
+    }
+
+        body.dark-mode .advisory-card.severity-danger {
+            border-left-color: #dc2626;
+            background: #1c0a0a !important;
+        }
+
+        body.dark-mode .advisory-card.severity-warning {
+            border-left-color: #f59e0b;
+            background: #1c1406 !important;
+        }
+
+        body.dark-mode .advisory-card.severity-info {
+            border-left-color: #3b82f6;
+            background: #0a1628 !important;
+        }
+
+        body.dark-mode .advisory-card.severity-danger .advisory-message {
+            color: #fca5a5;
+        }
+
+        body.dark-mode .advisory-card.severity-warning .advisory-message {
+            color: #fcd34d;
+        }
+
+        body.dark-mode .advisory-card.severity-info .advisory-message {
+            color: #93c5fd;
+        }
+
+        body.dark-mode .advisory-card.severity-danger .advisory-meta {
+            color: #fca5a5;
+        }
+
+        body.dark-mode .advisory-card.severity-warning .advisory-meta {
+            color: #fcd34d;
+        }
+
+        body.dark-mode .advisory-card.severity-info .advisory-meta {
+            color: #93c5fd;
+        }
+
+    body.dark-mode .activity-card {
+        background: transparent;
+    }
+
+        body.dark-mode .activity-card:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+    body.dark-mode .activity-description {
+        color: #f0f6fc;
+    }
+
+    body.dark-mode .activity-meta {
+        color: #8b949e;
+    }
+
+    body.dark-mode .activity-icon-wrapper {
+        background: rgba(30, 122, 58, 0.15);
+        color: #58a6ff;
+    }
+
+    body.dark-mode .table,
+    body.dark-mode .table tbody,
+    body.dark-mode .table tbody tr,
+    body.dark-mode .table tbody td {
+        background-color: #161b22 !important;
+        background: #161b22 !important;
+    }
+
+        body.dark-mode .table tbody td {
+            color: #f0f6fc !important;
+            border-bottom-color: #21262d !important;
+        }
+
+        body.dark-mode .table thead th {
+            color: #8b949e !important;
+            border-bottom-color: #30363d !important;
+            background: rgba(30, 122, 58, 0.15) !important;
+        }
+
+        body.dark-mode .table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.04) !important;
+        }
+
+    body.dark-mode .severity-row.severity-danger {
+        background: #2d0a0a !important;
+    }
+
+        body.dark-mode .severity-row.severity-danger td {
+            color: #fca5a5 !important;
+        }
+
+    body.dark-mode .severity-row.severity-warning {
+        background: #2d1f06 !important;
+    }
+
+        body.dark-mode .severity-row.severity-warning td {
+            color: #fcd34d !important;
+        }
+
+    body.dark-mode .severity-row.severity-info {
+        background: #0a1a2d !important;
+    }
+
+        body.dark-mode .severity-row.severity-info td {
+            color: #93c5fd !important;
+        }
+
+    body.dark-mode .card {
+        background: var(--card-bg, #161b22) !important;
+        border-color: var(--border, #30363d) !important;
+    }
+
+    body.dark-mode .card-header {
+        background: transparent !important;
+        border-bottom-color: #30363d !important;
+    }
+
+        body.dark-mode .card-header .badge.bg-light {
+            background: #21262d !important;
+            color: #8b949e !important;
+        }
+
+    body.dark-mode .text-muted {
+        color: #8b949e !important;
+    }
+
+    /* ── RESPONSIVE TWEAKS ── */
+    @media (max-width: 575.98px) {
+        .page-title {
+            font-size: 1.25rem;
+        }
+
+        .stat-card {
+            min-height: 76px;
+            padding: var(--space-3);
+        }
+
+            .stat-card .stat-icon {
+                width: 38px;
+                height: 38px;
+                font-size: 1rem;
+            }
+
+            .stat-card .stat-number {
+                font-size: 1.3rem;
+            }
+
+            .stat-card .stat-label {
+                font-size: 0.55rem;
+            }
+
+        .stat-link {
+            display: none;
+        }
+
+        .advisory-card {
+            padding: var(--space-3) !important;
+        }
+
+        .severity-icon-wrapper {
+            width: 28px;
+            height: 28px;
+            font-size: 0.7rem;
+        }
+
+        .advisory-message {
+            font-size: 0.85rem;
+        }
+
+        .activity-description {
+            font-size: 0.85rem;
+        }
+
+        .activity-icon-wrapper {
+            width: 28px;
+            height: 28px;
+            font-size: 0.75rem;
+        }
+
+        .card-header {
+            font-size: 0.85rem;
+            padding: var(--space-3) var(--space-3);
+        }
+    }
+
+    @media (min-width: 576px) and (max-width: 767.98px) {
+        .stat-card .stat-number {
+            font-size: 1.5rem;
+        }
+
+        .stat-card .stat-icon {
+            width: 42px;
+            height: 42px;
+            font-size: 1.1rem;
+        }
+    }
+
+    @media (min-width: 768px) {
+        .stat-card .stat-number {
+            font-size: 2rem;
+        }
+
+        .stat-card .stat-icon {
+            width: 52px;
+            height: 52px;
+            font-size: 1.4rem;
+        }
+
+        .stat-card {
+            padding: var(--space-4) var(--space-5);
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+        }
+    }
+</style>
+{% endblock %}

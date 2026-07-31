@@ -1,0 +1,1277 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-4">
+
+    <!-- ============================================================
+    PAGE HEADER
+    ============================================================ -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <h1 class="page-title">
+            <i class="fas fa-tachometer-alt me-2 text-primary"></i>{{ ('Welcome, ' + current_user_fullname + '!') | translate }}
+        </h1>
+        <span class="text-muted d-none d-sm-inline">{{ 'Your rice disease detection hub' | translate }}</span>
+    </div>
+
+    <!-- ============================================================
+    ADVISORY ALERT BANNER (most recent severe)
+    ============================================================ -->
+    {% if severe_advisory %}
+    <div class="alert alert-{{ severe_advisory.severity }} alert-dismissible fade show d-flex align-items-center mb-4" role="alert">
+        <i class="fas fa-bullhorn alert-icon me-3"></i>
+        <div>
+            <strong class="d-block">{{ severe_advisory.title }}</strong>
+            <p class="mb-0">{{ severe_advisory.message }}</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <!-- ============================================================
+    BARANGAY REMINDER
+    ============================================================ -->
+    {% if not session.barangay %}
+    <div class="alert alert-info alert-dismissible fade show mb-4" role="alert">
+        <i class="fas fa-map-marker-alt alert-icon me-2"></i>
+        {{ 'Set your barangay in your profile so we can display your location and provide barangay‑level disease risk alerts.'| translate }}
+        <a href="{{ url_for('profile') }}" class="alert-link">{{ 'Go to Profile' | translate }}</a>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <!-- ============================================================
+    STATISTICS CARDS – Responsive: full width on mobile, half on tablet+
+    ============================================================ -->
+    <div class="row g-3 g-md-4 mb-5">
+        <!-- Total Scans -->
+        <div class="col-12 col-md-6 col-xl-6">
+            <div class="stat-card stat-card-primary">
+                <div class="stat-icon"><i class="fas fa-camera"></i></div>
+                <div class="stat-content">
+                    <div class="stat-label">{{ 'Total Scans' | translate }}</div>
+                    <div class="stat-number">{{ scans_count }}</div>
+                </div>
+                <a href="{{ url_for('history') }}" class="stat-link">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- Weather Card -->
+        <div class="col-12 col-md-6 col-xl-6">
+            <a href="{{ url_for('weather') }}" class="text-decoration-none d-block h-100">
+                <div class="stat-card stat-card-weather h-100">
+                    <div class="stat-icon weather-icon-wrapper">
+                        {% if weather %}
+                        {% set condition = weather.weather_condition|lower %}
+                        {% if 'rain' in condition %}
+                        <i class="fas fa-cloud-rain"></i>
+                        {% elif 'cloud' in condition %}
+                        <i class="fas fa-cloud"></i>
+                        {% elif 'sun' in condition or 'clear' in condition %}
+                        <i class="fas fa-sun"></i>
+                        {% elif 'storm' in condition or 'thunder' in condition %}
+                        <i class="fas fa-bolt"></i>
+                        {% else %}
+                        <i class="fas fa-cloud-sun"></i>
+                        {% endif %}
+                        {% else %}
+                        <i class="fas fa-cloud-sun"></i>
+                        {% endif %}
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-label">{{ 'Weather' | translate }}</div>
+                        <div class="stat-number weather-temp-display">
+                            {% if weather %}
+                            {{ "%.1f"|format(weather.temperature) }}°C
+                            {% else %}
+                            <i class="fas fa-temperature-high"></i>
+                            {% endif %}
+                        </div>
+                        <div class="weather-condition-small text-muted small">
+                            {% if weather %}
+                            {{ weather.weather_condition|truncate(18) }}
+                            <span class="weather-humidity">· {{ weather.humidity }}%</span>
+                            {% else %}
+                            {{ 'Check forecast' | translate }}
+                            {% endif %}
+                        </div>
+                    </div>
+                    <span class="stat-link">
+                        <i class="fas fa-arrow-right"></i>
+                    </span>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    BARANGAY DISEASE RISK CARD – Clean Header (No Disease List)
+    ============================================================ -->
+    {% if overall_risk %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm risk-card risk-{{ overall_risk.color }}">
+                <div class="card-header bg-transparent border-bottom d-flex flex-wrap align-items-center gap-3">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <span class="risk-title">
+                            <i class="fas fa-exclamation-triangle me-2 text-{{ overall_risk.color }}"></i>
+                            {{ 'Barangay-Level Disease Risk Alert' | translate }}
+                        </span>
+                        <span class="badge bg-{{ overall_risk.color }} ms-2">{{ overall_risk.risk_level }}</span>
+                        {% if overall_risk.multiple %}
+                        <span class="badge bg-secondary ms-1">
+                            {{ overall_risk.top_diseases|length }} {{ 'diseases' | translate }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    <div class="ms-auto d-flex align-items-center gap-3 text-muted small flex-wrap">
+                        <span><i class="fas fa-file-alt me-1"></i>{{ overall_risk.count }} {{ 'reports' | translate }}</span>
+                        <span><i class="fas fa-users me-1"></i>{{ overall_risk.farmers }} {{ 'farmers' | translate }}</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-lg-7">
+                            <div class="recommendation-box">
+                                {% if overall_risk.multiple %}
+                                <p class="mb-0">
+                                    <strong>{{ overall_risk.top_diseases|join(', ') }}</strong>
+                                    are at <strong>{{ overall_risk.risk_level }}</strong> risk in your barangay.
+                                    Please check the list below for details.
+                                </p>
+                                {% else %}
+                                <p class="mb-0">{{ overall_risk.recommendation|safe }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-lg-5">
+                            <div class="disease-summary">
+                                <p class="fw-semibold small text-muted mb-2">{{ 'Detected Diseases' | translate }}</p>
+                                <div class="d-flex flex-wrap gap-1">
+                                    {% set risk_order = {'Low': 0, 'Moderate': 1, 'High': 2, 'Very High': 3} %}
+                                    {% for item in overall_risk.all_risks %}
+                                    {% if item.disease not in ['Healthy', 'Not Rice Leaf', 'Insect Damage'] and risk_order[item.risk_level] >= 1 %}
+                                    <span class="badge disease-badge bg-{{ item.color }}">
+                                        {{ item.disease }}
+                                        <span class="badge-count">{{ item.count }}</span>
+                                    </span>
+                                    {% endif %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="risk-details mt-3 pt-3 border-top">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            {{ 'Based on confirmed reports (confidence ≥ 85%) from the last 7 days.' | translate }}
+                        </small>
+                        <span class="ms-3 small text-muted">
+                            <i class="fas fa-map-pin me-1"></i>{{ session.barangay }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ============================================================
+    RECENT WEATHER ADVISORIES – moved here (after risk card)
+    ============================================================ -->
+    {% if advisories %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-0 advisory-card">
+                <div class="card-header bg-transparent border-bottom">
+                    <i class="fas fa-bullhorn me-2 text-primary"></i>{{ 'Recent Weather Advisories' | translate }}
+                </div>
+                <div class="card-body p-0">
+
+                    <!-- Desktop table – full message (no truncation) -->
+                    <div class="table-responsive d-none d-sm-block">
+                        <table class="table table-hover align-middle mb-0 advisory-table">
+                            <thead>
+                                <tr>
+                                    <th>{{ 'Message' | translate }}</th>
+                                    <th>{{ 'Severity' | translate }}</th>
+                                    <th>{{ 'Date' | translate }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for adv in advisories %}
+                                <tr>
+                                    <td class="advisory-message-cell">{{ adv.message }}</td>  <!-- full message -->
+                                    <td>
+                                        <span class="badge
+                                            {% if adv.severity == 'danger' %}badge-danger
+                                            {% elif adv.severity == 'warning' %}badge-warning
+                                            {% else %}badge-info{% endif %}">
+                                            {{ adv.severity|capitalize }}
+                                        </span>
+                                    </td>
+                                    <td class="text-muted small">{{ adv.created_at.strftime('%B %d, %Y') }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Mobile cards – full message (already full) -->
+                    <div class="d-sm-none p-3">
+                        {% for adv in advisories %}
+                        <div class="advisory-mobile-card severity-{{ adv.severity }} mb-3 p-3 rounded-3">
+                            <div class="d-flex align-items-start gap-3">
+                                <div class="advisory-mobile-icon">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                </div>
+                                <div class="flex-grow-1 min-w-0">
+                                    <div class="advisory-mobile-message">{{ adv.message }}</div>
+                                    <div class="advisory-mobile-meta mt-1">
+                                        <span>{{ adv.created_at.strftime('%B %d, %Y') }}</span>
+                                    </div>
+                                </div>
+                                <span class="severity-tag severity-{{ adv.severity }}">{{ adv.severity }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ============================================================
+    ROW: CHART + RECENT SCANS
+    ============================================================ -->
+    <div class="row g-4 mb-4">
+        <!-- Disease Distribution Chart -->
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-transparent border-bottom">
+                    <i class="fas fa-chart-pie me-2 text-primary"></i>{{ 'Your Rice Disease Distribution' | translate }}
+                </div>
+                <div class="card-body chart-container d-flex align-items-center justify-content-center">
+                    <canvas id="diseaseChart" height="260"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Scans -->
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-transparent border-bottom d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-history me-2 text-primary"></i>{{ 'Recent Scans' | translate }}</span>
+                    <a href="{{ url_for('history') }}" class="btn btn-sm btn-outline-success">
+                        {{ 'View All' | translate }} <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    {% if recent_scans %}
+                    <div class="list-group list-group-flush scan-list">
+                        {% for scan in recent_scans %}
+                        {% set disease_name = scan.disease_name or scan.predicted_name or 'Unknown' %}
+                        {% if disease_name not in ['Not Rice Leaf', 'Insect Damage', 'Healthy Rice Leaf', 'Healthy'] %}
+                        <a href="{{ url_for('result', scan_id=scan.id) }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div class="scan-item-left">
+                                <div class="scan-item-content">
+                                    <strong class="scan-disease">{{ disease_name }}</strong>
+                                    <span class="scan-date">{{ scan.created_at.strftime('%B %d, %Y %I:%M %p') }}</span>
+                                </div>
+                            </div>
+                            <span class="scan-confidence">{{ "%.1f"|format(scan.confidence*100) }}%</span>
+                        </a>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-inbox fa-2x mb-3 d-block"></i>
+                        {{ 'No disease scans yet.' | translate }}
+                        <a href="{{ url_for('scan') }}" class="btn btn-sm btn-primary mt-2">{{ 'Scan now' | translate }}</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ============================================================
+CHART SCRIPT
+============================================================ -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('diseaseChart').getContext('2d');
+        const labels = {{ labels|tojson }};
+        const counts = {{ counts|tojson }};
+
+        const hasData = counts && counts.reduce((a, b) => a + b, 0) > 0;
+
+        new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: hasData ? labels : ['{{ "No data" | translate }}'],
+                datasets: [{
+                    data: hasData ? counts : [1],
+                    backgroundColor: hasData ? [
+                        '#2e7d32', '#81c784', '#ffb300', '#d32f2f', '#1976d2', '#8e24aa',
+                        '#00796b', '#c2185b', '#7b1fa2', '#ff6f00'
+                    ] : ['#e9ecef'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                if (!hasData) return '{{ "No scans yet" | translate }}';
+                                return `${context.label}: ${context.raw} {{ "scans" | translate }}`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+
+<!-- ============================================================
+STYLES – fully responsive
+============================================================ -->
+<style>
+    /* ── page title ── */
+    .page-title {
+        font-family: var(--font-heading, 'Inter', system-ui, sans-serif);
+        font-weight: 700;
+        font-size: 1.5rem;
+        letter-spacing: -0.02em;
+        color: var(--text, #0d1117);
+        margin: 0;
+    }
+
+    /* ── stat cards ── */
+    .stat-card {
+        position: relative;
+        border-radius: var(--radius-lg, 16px);
+        padding: var(--space-4, 1rem) var(--space-4, 1rem);
+        background: var(--card-bg, #ffffff);
+        border: 1px solid var(--border, #e9edf2);
+        box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.06));
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        align-items: center;
+        gap: var(--space-3, 0.75rem);
+        overflow: hidden;
+        min-height: 88px;
+        cursor: default;
+    }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            border-radius: 0 3px 3px 0;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-md, 0 10px 25px -5px rgba(0,0,0,0.08));
+            border-color: transparent;
+        }
+
+        .stat-card .stat-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-md, 12px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+            background: rgba(30, 122, 58, 0.10);
+            color: var(--primary, #1e7a3a);
+            transition: transform 0.15s ease;
+        }
+
+        .stat-card:hover .stat-icon {
+            transform: scale(1.06);
+        }
+
+        .stat-card .stat-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .stat-card .stat-label {
+            font-size: 0.6rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--text-secondary, #57606a);
+            margin-bottom: 1px;
+        }
+
+        .stat-card .stat-number {
+            font-family: var(--font-heading, 'Inter', sans-serif);
+            font-size: 1.6rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            line-height: 1.2;
+            color: var(--text, #0d1117);
+        }
+
+    .stat-link {
+        position: absolute;
+        top: var(--space-3, 0.75rem);
+        right: var(--space-3, 0.75rem);
+        color: var(--text-muted, #8b949e);
+        font-size: 0.75rem;
+        opacity: 0;
+        transition: all 0.15s ease;
+        transform: translateX(6px);
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--card-bg, #fff);
+        box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.06));
+        text-decoration: none;
+    }
+
+    .stat-card:hover .stat-link {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    .stat-link:hover {
+        color: var(--primary, #1e7a3a);
+        background: rgba(30, 122, 58, 0.08);
+    }
+
+    /* ── Stat card variants ── */
+    .stat-card-primary::before {
+        background: var(--primary, #1e7a3a);
+    }
+
+    .stat-card-primary .stat-icon {
+        background: rgba(30, 122, 58, 0.10);
+        color: var(--primary, #1e7a3a);
+    }
+
+    .stat-card-primary .stat-number {
+        color: var(--primary, #1e7a3a);
+    }
+
+    .stat-card-success::before {
+        background: var(--primary, #1e7a3a);
+    }
+
+    .stat-card-success .stat-icon {
+        background: rgba(30, 122, 58, 0.10);
+        color: var(--primary, #1e7a3a);
+    }
+
+    .stat-card-success .stat-number {
+        color: var(--primary, #1e7a3a);
+    }
+
+    .stat-card-info::before {
+        background: #2563eb;
+    }
+
+    .stat-card-info .stat-icon {
+        background: rgba(37, 99, 235, 0.10);
+        color: #2563eb;
+    }
+
+    .stat-card-info .stat-number {
+        color: #2563eb;
+    }
+
+    .stat-card-accent::before {
+        background: #d97706;
+    }
+
+    .stat-card-accent .stat-icon {
+        background: rgba(217, 119, 6, 0.10);
+        color: #d97706;
+    }
+
+    .stat-card-accent .stat-number {
+        color: #d97706;
+    }
+
+    .stat-card-weather::before {
+        background: linear-gradient(135deg, #d97706, #f59e0b);
+    }
+
+    .stat-card-weather .weather-icon-wrapper {
+        background: linear-gradient(135deg, rgba(217, 119, 6, 0.15), rgba(245, 158, 11, 0.05));
+        color: #d97706;
+    }
+
+    .stat-card-weather .stat-number {
+        color: #d97706;
+    }
+
+    /* ── Risk Card ── */
+    .risk-card {
+        border-left: 5px solid #ccc;
+        transition: border-color 0.2s;
+    }
+
+        .risk-card.risk-success {
+            border-left-color: #28a745 !important;
+        }
+        /* GREEN */
+        .risk-card.risk-moderate {
+            border-left-color: #ffc107 !important;
+        }
+        /* YELLOW */
+        .risk-card.risk-high {
+            border-left-color: #fd7e14 !important;
+        }
+        /* ORANGE */
+        .risk-card.risk-danger {
+            border-left-color: #dc3545 !important;
+        }
+    /* RED */
+
+    /* ── Risk badges ── */
+    .badge.bg-success {
+        background-color: #28a745 !important;
+        color: #fff !important;
+    }
+
+    .badge.bg-moderate {
+        background-color: #ffc107 !important;
+        color: #0d1117 !important;
+    }
+
+    .badge.bg-high {
+        background-color: #fd7e14 !important;
+        color: #fff !important;
+    }
+
+    .badge.bg-danger {
+        background-color: #dc3545 !important;
+        color: #fff !important;
+    }
+
+    /* Dark mode risk badges */
+    body.dark-mode .badge.bg-success {
+        background-color: #2ea043 !important;
+        color: #fff !important;
+    }
+
+    body.dark-mode .badge.bg-moderate {
+        background-color: #d29922 !important;
+        color: #0d1117 !important;
+    }
+
+    body.dark-mode .badge.bg-high {
+        background-color: #d97706 !important;
+        color: #fff !important;
+    }
+
+    body.dark-mode .badge.bg-danger {
+        background-color: #f85149 !important;
+        color: #fff !important;
+    }
+
+    /* Dark mode risk card borders */
+    body.dark-mode .risk-card.risk-success {
+        border-left-color: #2ea043 !important;
+    }
+
+    body.dark-mode .risk-card.risk-moderate {
+        border-left-color: #d29922 !important;
+    }
+
+    body.dark-mode .risk-card.risk-high {
+        border-left-color: #d97706 !important;
+    }
+
+    body.dark-mode .risk-card.risk-danger {
+        border-left-color: #f85149 !important;
+    }
+
+    /* ── Recommendation box ── GREEN in both modes ── */
+    .recommendation-box {
+        background: rgba(30, 122, 58, 0.06);
+        padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+        border-radius: var(--radius-md, 12px);
+        border-left: 3px solid var(--primary, #1e7a3a);
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: var(--text, #0d1117);
+    }
+
+    body.dark-mode .recommendation-box {
+        background: rgba(46, 160, 67, 0.12);
+        border-left-color: #2ea043;
+        color: #f0f6fc;
+    }
+
+    /* ── Disease badges ── */
+    .disease-summary .disease-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 0.25rem 0.6rem;
+        font-size: 0.7rem;
+        font-weight: 500;
+        border-radius: 9999px;
+        color: #fff;
+    }
+
+    .disease-badge .badge-count {
+        background: rgba(255,255,255,0.25);
+        padding: 0 4px;
+        border-radius: 4px;
+        font-size: 0.6rem;
+        font-weight: 700;
+        min-width: 16px;
+        text-align: center;
+    }
+
+    .risk-details {
+        font-size: 0.8rem;
+    }
+
+    /* ── scan list ── */
+    .scan-list .list-group-item {
+        padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+        border-left: none;
+        border-right: none;
+        border-color: var(--border-light, #f0f2f5);
+        transition: background 0.15s ease;
+        background: transparent;
+        color: var(--text, #0d1117);
+        text-decoration: none;
+        cursor: pointer;
+        border-left: 3px solid transparent;
+        transition: border-color 0.2s;
+    }
+
+        .scan-list .list-group-item:hover {
+            background: rgba(30, 122, 58, 0.04);
+            border-left-color: var(--primary, #1e7a3a);
+        }
+
+        .scan-list .list-group-item:first-child {
+            border-top: none;
+        }
+
+        .scan-list .list-group-item:last-child {
+            border-bottom: none;
+        }
+
+    .scan-item-left {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3, 0.75rem);
+    }
+
+    .scan-initials {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: rgba(30, 122, 58, 0.10);
+        color: var(--primary, #1e7a3a);
+        font-weight: 700;
+        font-size: 0.85rem;
+        font-family: var(--font-heading, 'Inter', sans-serif);
+        flex-shrink: 0;
+    }
+
+    .scan-item-content {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .scan-disease {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--text, #0d1117);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .scan-date {
+        font-size: 0.75rem;
+        color: var(--text-muted, #57606a);
+    }
+
+    .scan-confidence {
+        font-size: 0.75rem;
+        padding: 0.2rem 0.7rem;
+        border-radius: 9999px;
+        font-weight: 700;
+        background: rgba(30, 122, 58, 0.12) !important;
+        color: var(--primary, #1e7a3a) !important;
+        flex-shrink: 0;
+    }
+
+    body.dark-mode .scan-confidence {
+        background: rgba(46, 160, 67, 0.2) !important;
+        color: #2ea043 !important;
+    }
+
+    /* ── chart container ── */
+    .chart-container {
+        position: relative;
+        height: 260px;
+        width: 100%;
+    }
+
+        .chart-container canvas {
+            max-height: 260px;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+    /* ── "View All" button – green ── */
+    .btn-outline-success {
+        color: var(--primary, #1e7a3a);
+        border-color: var(--primary, #1e7a3a);
+    }
+
+        .btn-outline-success:hover {
+            background: var(--primary, #1e7a3a);
+            color: #fff;
+        }
+
+    body.dark-mode .btn-outline-success {
+        color: #2ea043;
+        border-color: #2ea043;
+    }
+
+        body.dark-mode .btn-outline-success:hover {
+            background: #2ea043;
+            color: #fff;
+        }
+
+    /* ── badges ── */
+    .badge {
+        font-weight: 600;
+        font-size: 0.7rem;
+        padding: var(--space-1, 0.25rem) var(--space-3, 0.75rem);
+        border-radius: 9999px;
+        text-transform: capitalize;
+    }
+
+        .badge.bg-primary {
+            background: var(--primary, #1e7a3a) !important;
+            color: #fff;
+        }
+
+        .badge.bg-info {
+            background: #0dcaf0 !important;
+            color: #0d1117;
+        }
+
+        .badge.bg-warning {
+            background: #ffc107 !important;
+            color: #0d1117;
+        }
+
+    body.dark-mode .badge.bg-primary {
+        background: var(--primary, #1e7a3a) !important;
+        color: #fff;
+    }
+
+    body.dark-mode .badge.bg-info {
+        background: #58a6ff !important;
+        color: #fff;
+    }
+
+    body.dark-mode .badge.bg-warning {
+        background: #d29922 !important;
+        color: #0d1117;
+    }
+
+    /* ── mobile advisory cards ── */
+    .advisory-mobile-card {
+        border-radius: var(--radius-md, 12px);
+        border: 1px solid var(--border, #e9edf2);
+        background: var(--card-bg, #ffffff);
+        box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.06));
+        border-left-width: 4px;
+        border-left-style: solid;
+    }
+
+        .advisory-mobile-card:hover {
+            box-shadow: var(--shadow-md, 0 10px 25px -5px rgba(0,0,0,0.08));
+        }
+
+        .advisory-mobile-card.severity-danger {
+            border-left-color: #dc2626;
+            background: #fef2f2;
+        }
+
+        .advisory-mobile-card.severity-warning {
+            border-left-color: #f59e0b;
+            background: #fffbeb;
+        }
+
+        .advisory-mobile-card.severity-info {
+            border-left-color: #3b82f6;
+            background: #eff6ff;
+        }
+
+    .advisory-mobile-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 0.8rem;
+    }
+
+    .advisory-mobile-card.severity-danger .advisory-mobile-icon {
+        background: #dc2626;
+        color: #fff;
+    }
+
+    .advisory-mobile-card.severity-warning .advisory-mobile-icon {
+        background: #f59e0b;
+        color: #fff;
+    }
+
+    .advisory-mobile-card.severity-info .advisory-mobile-icon {
+        background: #3b82f6;
+        color: #fff;
+    }
+
+    .advisory-mobile-message {
+        font-weight: 500;
+        font-size: 0.9rem;
+        color: var(--text, #0d1117);
+        line-height: 1.4;
+        word-break: break-word;
+    }
+
+    .advisory-mobile-card.severity-danger .advisory-mobile-message {
+        color: #991b1b;
+    }
+
+    .advisory-mobile-card.severity-warning .advisory-mobile-message {
+        color: #92400e;
+    }
+
+    .advisory-mobile-card.severity-info .advisory-mobile-message {
+        color: #1e40af;
+    }
+
+    .advisory-mobile-meta {
+        font-size: 0.7rem;
+        color: var(--text-muted, #57606a);
+    }
+
+    .advisory-mobile-card.severity-danger .advisory-mobile-meta {
+        color: #7f1d1d;
+    }
+
+    .advisory-mobile-card.severity-warning .advisory-mobile-meta {
+        color: #78350f;
+    }
+
+    .advisory-mobile-card.severity-info .advisory-mobile-meta {
+        color: #1e3a8a;
+    }
+
+    .severity-tag {
+        font-size: 0.55rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 0.15rem 0.6rem;
+        border-radius: 9999px;
+        flex-shrink: 0;
+        margin-top: 2px;
+    }
+
+        .severity-tag.severity-danger {
+            background: #dc2626;
+            color: #fff;
+        }
+
+        .severity-tag.severity-warning {
+            background: #f59e0b;
+            color: #fff;
+        }
+
+        .severity-tag.severity-info {
+            background: #3b82f6;
+            color: #fff;
+        }
+
+    .card-header {
+        padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+
+        .card-header .btn-outline-primary {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.7rem;
+            border-radius: 9999px;
+        }
+
+    /* ================================================================
+       DARK MODE – with explicit fixes for advisory table & green elements
+    ================================================================ */
+    body.dark-mode .stat-card {
+        background: var(--card-bg, #161b22);
+        border-color: var(--border, #30363d);
+    }
+
+        body.dark-mode .stat-card .stat-number {
+            color: #f0f6fc;
+        }
+
+        body.dark-mode .stat-card .stat-label {
+            color: #8b949e;
+        }
+
+    body.dark-mode .stat-link {
+        background: #161b22;
+        color: #8b949e;
+    }
+
+        body.dark-mode .stat-link:hover {
+            background: rgba(30, 122, 58, 0.15);
+            color: #58a6ff;
+        }
+
+    body.dark-mode .scan-list .list-group-item {
+        border-color: var(--border, #30363d);
+        background: transparent;
+        color: #f0f6fc;
+    }
+
+        body.dark-mode .scan-list .list-group-item:hover {
+            background: rgba(255,255,255,0.03);
+        }
+
+    body.dark-mode .scan-initials {
+        background: rgba(30, 122, 58, 0.2);
+        color: #58a6ff;
+    }
+
+    body.dark-mode .scan-disease {
+        color: #f0f6fc;
+    }
+
+    body.dark-mode .scan-date {
+        color: #8b949e;
+    }
+
+    body.dark-mode .advisory-mobile-card {
+        background: #161b22 !important;
+        border-color: #30363d;
+    }
+
+        body.dark-mode .advisory-mobile-card.severity-danger {
+            border-left-color: #dc2626;
+            background: #1c0a0a !important;
+        }
+
+        body.dark-mode .advisory-mobile-card.severity-warning {
+            border-left-color: #f59e0b;
+            background: #1c1406 !important;
+        }
+
+        body.dark-mode .advisory-mobile-card.severity-info {
+            border-left-color: #3b82f6;
+            background: #0a1628 !important;
+        }
+
+        body.dark-mode .advisory-mobile-card.severity-danger .advisory-mobile-message {
+            color: #fca5a5;
+        }
+
+        body.dark-mode .advisory-mobile-card.severity-warning .advisory-mobile-message {
+            color: #fcd34d;
+        }
+
+        body.dark-mode .advisory-mobile-card.severity-info .advisory-mobile-message {
+            color: #93c5fd;
+        }
+
+    body.dark-mode .advisory-card {
+        background: var(--card-bg, #161b22) !important;
+        border-color: var(--border, #30363d) !important;
+    }
+
+        body.dark-mode .advisory-card .card-header {
+            background: transparent !important;
+            border-bottom-color: #30363d !important;
+        }
+
+        body.dark-mode .advisory-card .advisory-table {
+            background-color: transparent !important;
+        }
+
+            body.dark-mode .advisory-card .advisory-table thead th {
+                background: rgba(30, 122, 58, 0.15) !important;
+                color: #c9d1d9 !important;
+                border-bottom-color: #30363d !important;
+            }
+
+            body.dark-mode .advisory-card .advisory-table tbody td {
+                color: #f0f6fc !important;
+                border-bottom-color: #30363d !important;
+                background: transparent !important;
+            }
+
+            body.dark-mode .advisory-card .advisory-table tbody tr:hover {
+                background: rgba(30, 122, 58, 0.15) !important;
+            }
+
+            body.dark-mode .advisory-card .advisory-table .text-muted {
+                color: #8b949e !important;
+            }
+
+            body.dark-mode .advisory-card .advisory-table .badge {
+                color: #ffffff !important;
+            }
+
+    /* Allow long messages to wrap in table */
+    .advisory-message-cell {
+        word-break: break-word;
+        max-width: 300px; /* prevent overly wide columns */
+    }
+
+    body.dark-mode .card {
+        background: var(--card-bg, #161b22) !important;
+        border-color: var(--border, #30363d) !important;
+    }
+
+    body.dark-mode .card-header {
+        background: transparent !important;
+        border-bottom-color: #30363d !important;
+    }
+
+        body.dark-mode .card-header .btn-outline-primary {
+            color: #58a6ff;
+            border-color: #30363d;
+        }
+
+            body.dark-mode .card-header .btn-outline-primary:hover {
+                background: rgba(30, 122, 58, 0.2);
+                border-color: #58a6ff;
+            }
+
+    body.dark-mode .text-muted {
+        color: #8b949e !important;
+    }
+
+    body.dark-mode .alert-info {
+        background: #0a1628;
+        border-color: #1e3a8a;
+        color: #93c5fd;
+    }
+
+        body.dark-mode .alert-info .alert-link {
+            color: #60a5fa;
+        }
+
+    /* ── Risk Title ── */
+    .risk-title {
+        font-family: var(--font-heading, 'Inter', system-ui, sans-serif);
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: var(--text, #0d1117);
+        letter-spacing: -0.02em;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    body.dark-mode .risk-title {
+        color: #f0f6fc;
+    }
+
+    /* ================================================================
+       RESPONSIVE OVERRIDES – Mobile first adjustments
+    ================================================================ */
+    @media (max-width: 575.98px) {
+        .page-title {
+            font-size: 1.2rem;
+        }
+
+        .container-fluid {
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
+        }
+
+        .stat-card {
+            min-height: 80px;
+            padding: 0.75rem;
+            border-radius: 12px;
+        }
+
+            .stat-card .stat-icon {
+                width: 38px;
+                height: 38px;
+                font-size: 1rem;
+            }
+
+            .stat-card .stat-number {
+                font-size: 1.3rem;
+            }
+
+            .stat-card .stat-label {
+                font-size: 0.55rem;
+            }
+
+        .stat-link {
+            display: none;
+        }
+
+        .chart-container {
+            height: 200px;
+        }
+
+            .chart-container canvas {
+                max-height: 200px;
+            }
+
+        .scan-list .list-group-item {
+            padding: 0.6rem 0.75rem;
+        }
+
+        .scan-initials {
+            width: 28px;
+            height: 28px;
+            font-size: 0.7rem;
+        }
+
+        .scan-disease {
+            font-size: 0.8rem;
+        }
+
+        .scan-date {
+            font-size: 0.6rem;
+        }
+
+        .scan-confidence {
+            font-size: 0.65rem;
+            padding: 0.1rem 0.5rem;
+        }
+
+        .risk-card .card-body {
+            padding: 0.75rem;
+        }
+
+        .risk-card .card-header {
+            padding: 0.6rem 0.75rem;
+        }
+
+        .recommendation-box {
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+        }
+
+        .disease-summary .disease-badge {
+            font-size: 0.6rem;
+            padding: 0.15rem 0.5rem;
+        }
+
+        .risk-details {
+            font-size: 0.7rem;
+        }
+
+        .advisory-mobile-card {
+            padding: 0.75rem !important;
+        }
+
+        .advisory-mobile-message {
+            font-size: 0.85rem;
+        }
+
+        .advisory-mobile-icon {
+            width: 30px;
+            height: 30px;
+            font-size: 0.75rem;
+        }
+
+        .severity-tag {
+            display: none;
+        }
+
+        .card-header {
+            font-size: 0.85rem;
+            padding: 0.6rem 0.75rem;
+        }
+
+            .card-header .btn-outline-success,
+            .card-header .btn-outline-primary {
+                font-size: 0.7rem;
+                padding: 0.2rem 0.6rem;
+            }
+
+        .stat-card-weather .stat-number {
+            font-size: 1.3rem;
+        }
+
+        .weather-condition-small {
+            font-size: 0.65rem;
+        }
+    }
+
+    @media (min-width: 768px) {
+        .stat-card .stat-number {
+            font-size: 2rem;
+        }
+
+        .stat-card .stat-icon {
+            width: 52px;
+            height: 52px;
+            font-size: 1.4rem;
+        }
+
+        .stat-card {
+            padding: var(--space-4, 1rem) var(--space-5, 1.5rem);
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+        }
+
+        .chart-container {
+            height: 260px;
+        }
+    }
+
+    .text-high {
+        color: #fd7e14 !important; /* orange */
+    }
+
+    .text-moderate {
+        color: #ffc107 !important; /* yellow */
+    }
+</style>
+{% endblock %}

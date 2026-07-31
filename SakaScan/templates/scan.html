@@ -1,0 +1,1148 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-4">
+
+    <!-- ============================================================
+    PAGE HEADER
+    ============================================================ -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <h1 class="page-title">
+            <i class="fas fa-camera me-2 text-primary"></i>{{ 'Scan Rice Leaf' | translate }}
+        </h1>
+        <span class="text-muted d-none d-sm-inline">{{ 'Capture or upload a leaf image for disease detection' | translate }}</span>
+    </div>
+
+    <!-- ============================================================
+    TWO‑COLUMN LAYOUT
+    ============================================================ -->
+    <div class="row g-4">
+
+        <!-- CAMERA -->
+        <div class="col-md-6 order-md-1 order-1">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-transparent border-bottom">
+                    <i class="fas fa-camera me-2 text-primary"></i>{{ 'Capture with Camera' | translate }}
+                </div>
+                <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                    <button id="camera-btn" class="btn btn-primary btn-lg w-100 py-3">
+                        <i class="fas fa-camera me-2"></i>{{ 'Use Camera' | translate }}
+                    </button>
+                    <p class="text-muted small mt-3 text-center">
+                        <i class="fas fa-info-circle me-1"></i>
+                        {{ 'Point your camera at a rice leaf, then capture.' | translate }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- UPLOAD -->
+        <div class="col-md-6 order-md-2 order-2">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-transparent border-bottom">
+                    <i class="fas fa-upload me-2 text-primary"></i>{{ 'Upload Image' | translate }}
+                </div>
+                <div class="card-body">
+                    <form action="{{ url_for('scan') }}" method="post" enctype="multipart/form-data" id="uploadForm">
+                        <div class="mb-3">
+                            <label for="file" class="form-label">{{ 'Choose an image of a rice leaf' | translate }}</label>
+                            <div class="input-icon-wrapper">
+                                <i class="fas fa-file-image input-icon"></i>
+                                <input class="form-control" type="file" name="file" id="file" accept="image/*" required>
+                            </div>
+                            <div class="form-text">{{ 'Accepted formats: PNG, JPG, JPEG, GIF' | translate }}</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="location" class="form-label">
+                                {{ 'Location (Barangay)' | translate }}
+                                <span id="autoDetectBadge" class="badge bg-success ms-2" style="display:none;">
+                                    <i class="fas fa-check-circle"></i> {{ 'Auto-detected' | translate }}
+                                </span>
+                            </label>
+                            <select class="form-select" name="location" id="location">
+                                <option value="">{{ '-- Select your barangay --' | translate }}</option>
+                                {% for brgy in barangays %}
+                                <option value="{{ brgy }}" {% if brgy==user_barangay %}selected{% endif %}>{{ brgy }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Hidden geolocation fields -->
+                        <input type="hidden" id="upload_lat" name="latitude" value="">
+                        <input type="hidden" id="upload_lng" name="longitude" value="">
+
+                        <button type="submit" class="btn btn-outline-primary w-100" id="submitBtn">
+                            <i class="fas fa-cloud-upload-alt me-2"></i>{{ 'Upload & Detect' | translate }}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ============================================================
+FULL‑SCREEN CAMERA OVERLAY
+============================================================ -->
+<div id="cameraOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#000; z-index:99999; flex-direction:column; align-items:center; justify-content:center;">
+    <div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#000; position:relative;">
+        <video id="video" style="max-width:100%; max-height:100%; object-fit:contain;" autoplay playsinline></video>
+        <button id="close-camera-btn" style="position:absolute; top:100px; right:20px; z-index:99999; background:rgba(0,0,0,0.85); border:2px solid rgba(255,255,255,0.95); border-radius:50%; width:56px; height:56px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.8rem; cursor:pointer; backdrop-filter:blur(4px); box-shadow:0 0 30px rgba(255,255,255,0.2); transition:all 0.2s ease;" onmouseover="this.style.background='rgba(255,255,255,0.3)'; this.style.transform='scale(1.08)'" onmouseout="this.style.background='rgba(0,0,0,0.85)'; this.style.transform='scale(1)'">
+            <i class="fas fa-times"></i>
+        </button>
+        <div style="position:absolute; bottom:120px; left:50%; transform:translateX(-50%); z-index:10; width:auto;">
+            <button id="capture-btn" style="min-width:220px; border-radius:50px; box-shadow:0 4px 30px rgba(0,0,0,0.8); padding:18px 40px; font-size:1.3rem; background:linear-gradient(135deg, #2e7d32, #1e7a3a); border:none; color:#fff; display:flex; align-items:center; gap:16px; transition:transform 0.15s ease, box-shadow 0.15s ease; cursor:pointer;">
+                <i class="fas fa-camera-retro" style="font-size:1.8rem;"></i> {{ 'Capture' | translate }}
+            </button>
+        </div>
+    </div>
+    <canvas id="canvas" style="display:none;"></canvas>
+</div>
+
+<!-- Hidden capture form -->
+<form id="capture-form" method="post" enctype="multipart/form-data" style="display:none;">
+    <input type="file" name="file" id="capture-file" style="display:none;">
+    <input type="hidden" name="location" id="capture-location">
+    <input type="hidden" id="capture_lat" name="latitude" value="">
+    <input type="hidden" id="capture_lng" name="longitude" value="">
+</form>
+
+<!-- ============================================================
+LOADING OVERLAY
+============================================================ -->
+<div id="loadingOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:999999; align-items:center; justify-content:center; flex-direction:column; backdrop-filter:blur(4px);">
+    <div class="scan-animation-wrapper">
+        <div class="sheaf-container">
+            <span class="sheaf-emoji">🌾</span>
+            <div class="scan-line"></div>
+        </div>
+        <p class="text-white mt-3" style="font-weight:500; font-size:1.2rem;">
+            <i class="fas fa-spinner fa-pulse me-2"></i>
+            {{ 'Analyzing rice leaf... Please wait' | translate }}
+        </p>
+    </div>
+</div>
+<!-- Error Modal – responsive + dark mode adaptive -->
+{% if error %}
+<div class="modal fade show" id="errorModal" tabindex="-1" style="display:block; background:rgba(0,0,0,0.5);" aria-modal="true" role="dialog" data-bs-theme="auto">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <h5 class="modal-title text-{{ 'danger' if error_type == 'not_leaf' else 'warning' }}">
+                    <i class="fas fa-{{ 'ban' if error_type == 'not_leaf' else 'exclamation-triangle' }} me-2"></i>
+                    {{ 'Not a Rice Leaf' if error_type == 'not_leaf' else error_type|capitalize }} Issue
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="location.href='{{ url_for('scan') }}'"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <img src="{{ image_preview }}" class="img-fluid rounded border w-100" alt="Your image" style="max-height:300px; object-fit:contain; background:var(--card-bg, #f8f9fa);">
+                    </div>
+                    <div class="col-12 col-md-6 d-flex flex-column">
+                        <p class="fw-semibold text-{{ 'danger' if error_type == 'not_leaf' else 'warning' }} mb-1">{{ error }}</p>
+                        <p class="text-muted small">{{ guidance }}</p>
+                        <div class="d-flex flex-wrap gap-2 mt-2">
+                            <button class="btn btn-primary flex-fill" onclick="retryCapture()">
+                                <i class="fas fa-camera me-1"></i> Retake
+                            </button>
+                            <button class="btn btn-outline-secondary flex-fill" onclick="location.href='{{ url_for('scan') }}'">
+                                <i class="fas fa-upload me-1"></i> Upload
+                            </button>
+                        </div>
+                        {% if error_type == 'low_confidence' %}
+                        <hr>
+                        <p class="small fw-semibold">Did we get it wrong? Help us improve:</p>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="manual_disease" id="disease1" value="Rice Blast">
+                            <label class="form-check-label" for="disease1">Rice Blast</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="manual_disease" id="disease2" value="Bacterial Leaf Blight">
+                            <label class="form-check-label" for="disease2">Bacterial Leaf Blight</label>
+                        </div>
+                        <button class="btn btn-success btn-sm mt-2 align-self-start" onclick="submitManualDisease()">
+                            <i class="fas fa-check me-1"></i> Submit Correction
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+<!-- ============================================================
+JAVASCRIPT – Fully fixed auto‑detection with submission validation
+============================================================ -->
+<script>
+(function() {
+    // -------- DOM refs --------
+    const cameraBtn = document.getElementById('camera-btn');
+    const overlay = document.getElementById('cameraOverlay');
+    const video = document.getElementById('video');
+    const captureBtn = document.getElementById('capture-btn');
+    const closeBtn = document.getElementById('close-camera-btn');
+    const canvas = document.getElementById('canvas');
+    const captureFile = document.getElementById('capture-file');
+    const captureLocation = document.getElementById('capture-location');
+    const captureForm = document.getElementById('capture-form');
+    const locationSelect = document.getElementById('location');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const uploadForm = document.getElementById('uploadForm');
+    const submitBtn = document.getElementById('submitBtn');
+
+    let stream = null;
+    let autoDetectedBarangay = null;
+    let gpsLat = null;
+    let gpsLng = null;
+
+    // -------- Show loading overlay --------
+    window.showLoading = function() {
+        loadingOverlay.style.display = 'flex';
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Uploading...';
+    };
+
+    // -------- Open camera --------
+    cameraBtn.addEventListener('click', async function() {
+        overlay.style.display = 'flex';
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' }
+            });
+            video.srcObject = stream;
+            await video.play();
+        } catch (err) {
+            alert('Camera access denied or not supported.');
+            overlay.style.display = 'none';
+        }
+    });
+
+    // -------- Capture photo --------
+    captureBtn.addEventListener('click', function() {
+        if (!stream) return;
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(function(blob) {
+            const file = new File([blob], "capture.jpg", { type: "image/jpeg" });
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            captureFile.files = dataTransfer.files;
+            captureLocation.value = locationSelect.value;
+            showLoading();
+            captureForm.submit();
+        }, 'image/jpeg');
+    });
+
+    // -------- Close camera --------
+    closeBtn.addEventListener('click', function() {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            stream = null;
+        }
+        overlay.style.display = 'none';
+    });
+
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+            closeBtn.click();
+        }
+    });
+
+    window.addEventListener('beforeunload', function() {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+    });
+
+    // -------- Geolocation helpers --------
+    function getLocation() {
+        return new Promise((resolve) => {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        resolve({
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude,
+                            source: 'gps'
+                        });
+                    },
+                    (error) => {
+                        console.warn('Geolocation error:', error.message);
+                        fetchIPLocation().then(resolve);
+                    },
+                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                );
+            } else {
+                fetchIPLocation().then(resolve);
+            }
+        });
+    }
+
+    function fetchIPLocation() {
+        return fetch('https://ipapi.co/json/')
+            .then(response => response.json())
+            .then(data => {
+                if (data.latitude && data.longitude) {
+                    return { lat: data.latitude, lng: data.longitude, source: 'ip' };
+                }
+                return { lat: null, lng: null, source: 'none' };
+            })
+            .catch(() => ({ lat: null, lng: null, source: 'none' }));
+    }
+
+    // -------- Update hidden fields (never clear coordinates) --------
+    function setHiddenLocation(lat, lng) {
+        if (lat !== null && lng !== null) {
+            document.getElementById('upload_lat').value = lat;
+            document.getElementById('upload_lng').value = lng;
+            document.getElementById('capture_lat').value = lat;
+            document.getElementById('capture_lng').value = lng;
+            console.log(`📍 Coordinates set: ${lat}, ${lng}`);
+        } else {
+            console.warn('⚠️ Attempted to set null coordinates – keeping previous values.');
+        }
+    }
+
+    // -------- Distance --------
+    function calculateDistance(lat1, lng1, lat2, lng2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLng/2) * Math.sin(dLng/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    // -------- Fetch barangay coordinates --------
+    let barangayData = [];
+
+    async function fetchBarangays() {
+        try {
+            const response = await fetch('/api/barangays');
+            const data = await response.json();
+            barangayData = data;
+            console.log(`✅ Loaded ${barangayData.length} barangays.`);
+        } catch (e) {
+            console.warn('Failed to fetch barangay data:', e);
+        }
+    }
+
+    // -------- Find nearest barangay (improved) --------
+    function findNearestBarangay(lat, lng) {
+        if (!lat || !lng || barangayData.length === 0) return null;
+        let nearest = null;
+        let minDistance = Infinity;
+        for (const brgy of barangayData) {
+            const dist = calculateDistance(lat, lng, brgy.latitude, brgy.longitude);
+            if (dist < minDistance) {
+                minDistance = dist;
+                nearest = brgy.name;
+            }
+        }
+        return minDistance <= 5 ? { name: nearest, distance: minDistance } : null;
+    }
+
+    // -------- Set barangay and coordinates (robust) --------
+    function setBarangayAndCoordinates(barangayName) {
+        if (!barangayName) return false;
+
+        // 1. Try exact match (case-insensitive)
+        let found = barangayData.find(b => b.name.toLowerCase() === barangayName.toLowerCase());
+        if (found) {
+            locationSelect.value = found.name;
+            setHiddenLocation(found.latitude, found.longitude);
+            console.log(`✅ Exact match: ${found.name}`);
+            return true;
+        }
+
+        // 2. Try substring match (score by length)
+        let bestMatch = null;
+        let bestScore = 0;
+        const cleanInput = barangayName.replace(/^(Brgy\.?|Barangay)\s*/i, '').trim();
+        for (const b of barangayData) {
+            const cleanB = b.name.replace(/^(Brgy\.?|Barangay)\s*/i, '').trim();
+            if (cleanInput.toLowerCase().includes(cleanB.toLowerCase()) ||
+                cleanB.toLowerCase().includes(cleanInput.toLowerCase())) {
+                const score = Math.min(cleanInput.length, cleanB.length) / Math.max(cleanInput.length, cleanB.length);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMatch = b;
+                }
+            }
+        }
+        if (bestMatch && bestScore > 0.5) {
+            locationSelect.value = bestMatch.name;
+            setHiddenLocation(bestMatch.latitude, bestMatch.longitude);
+            console.log(`✅ Substring match: ${bestMatch.name} (score ${bestScore.toFixed(2)})`);
+            return true;
+        }
+
+        console.warn(`⚠️ No barangay match for "${barangayName}".`);
+        return false;
+    }
+
+    // -------- Nominatim fallback (only if needed) --------
+    async function reverseGeocodeNominatim(lat, lng) {
+        try {
+            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+            const response = await fetch(url, { headers: { 'User-Agent': 'SAKASCAN/1.0' } });
+            const data = await response.json();
+            if (data && data.address) {
+                let detected = data.address.village ||
+                               data.address.suburb ||
+                               data.address.neighbourhood ||
+                               data.address.town ||
+                               data.address.city_district;
+                if (detected) {
+                    const clean = detected.replace(/^(Brgy\.?|Barangay)\s*/i, '').trim();
+                    return setBarangayAndCoordinates(clean);
+                }
+            }
+        } catch (e) { console.warn('Nominatim error:', e); }
+        return false;
+    }
+
+    // -------- Main initialization --------
+    document.addEventListener('DOMContentLoaded', async function() {
+        await fetchBarangays();
+
+        const { lat, lng } = await getLocation();
+        if (lat && lng) {
+            gpsLat = lat;
+            gpsLng = lng;
+            setHiddenLocation(lat, lng); // always keep GPS coords
+
+            // Try distance‑based matching
+            const result = findNearestBarangay(lat, lng);
+            if (result) {
+                const success = setBarangayAndCoordinates(result.name);
+                if (success) {
+                    autoDetectedBarangay = result.name;
+                    document.getElementById('autoDetectBadge').style.display = 'inline';
+                    console.log(`✅ Auto‑detected: ${result.name} (${result.distance.toFixed(2)} km)`);
+                }
+            } else {
+                // Fallback to Nominatim
+                const matched = await reverseGeocodeNominatim(lat, lng);
+                if (matched) {
+                    autoDetectedBarangay = locationSelect.value;
+                    document.getElementById('autoDetectBadge').style.display = 'inline';
+                }
+            }
+        } else {
+            console.warn('No location available.');
+        }
+
+        // Manual selection overrides auto
+        locationSelect.addEventListener('change', function() {
+            const val = this.value;
+            if (val) {
+                setBarangayAndCoordinates(val);
+                document.getElementById('autoDetectBadge').style.display = 'none';
+                autoDetectedBarangay = null;
+            }
+        });
+
+        // -------- Form submission validation --------
+        uploadForm.addEventListener('submit', function(e) {
+            const currentLocation = locationSelect.value;
+
+            // If dropdown is empty but we have an auto‑detected barangay, force it
+            if (!currentLocation && autoDetectedBarangay) {
+                const forced = setBarangayAndCoordinates(autoDetectedBarangay);
+                if (forced) {
+                    console.log('🔁 Re‑applied auto‑detected barangay on submit.');
+                }
+            }
+
+            // If still empty, set to 'Unknown' but KEEP coordinates (from GPS/IP)
+            if (!locationSelect.value) {
+                console.warn('⚠️ No barangay selected – using "Unknown".');
+                locationSelect.value = 'Unknown';
+                // Do NOT clear coordinates – we keep GPS values
+            }
+
+            // Log final values
+            console.log('📦 Submitting with:', {
+                location: locationSelect.value,
+                latitude: document.getElementById('upload_lat').value,
+                longitude: document.getElementById('upload_lng').value
+            });
+
+            showLoading();
+        });
+    });
+
+    // -------- Global functions for modal buttons --------
+    window.retryCapture = function() {
+        document.getElementById('errorModal').style.display = 'none';
+        document.getElementById('file').value = '';
+        cameraBtn.click();
+    };
+
+    window.submitManualDisease = function() {
+        const selected = document.querySelector('input[name="manual_disease"]:checked');
+        if (!selected) {
+            alert('Please select a disease.');
+            return;
+        }
+        fetch('/submit-feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                disease: selected.value,
+                image: document.querySelector('#errorModal img').src
+            })
+        }).then(response => response.json())
+          .then(data => {
+              alert('Thank you for your feedback!');
+              location.href = '{{ url_for('scan') }}';
+          });
+    };
+
+    // -------- Expose showLoading globally --------
+    window.showLoading = showLoading;
+})();
+</script>
+
+<!-- ============================================================
+STYLES – fully responsive, includes scanning animation
+============================================================ -->
+<style>
+    .page-title {
+        font-family: var(--font-heading, 'Inter', system-ui, sans-serif);
+        font-weight: 700;
+        font-size: 1.5rem;
+        letter-spacing: -0.02em;
+        color: var(--text, #0d1117);
+        margin: 0;
+    }
+
+    .card {
+        border-radius: var(--radius-lg, 16px);
+        border: 1px solid var(--border, #e9edf2);
+        background: var(--card-bg, #ffffff);
+        box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.06));
+        transition: box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+        .card:hover {
+            box-shadow: var(--shadow-md, 0 10px 25px -5px rgba(0,0,0,0.08));
+        }
+
+    .card-header {
+        background: transparent;
+        border-bottom: 1px solid var(--border, #e9edf2);
+        padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+        font-weight: 600;
+        font-family: var(--font-heading, 'Inter', sans-serif);
+        color: var(--text, #0d1117);
+        font-size: 0.95rem;
+    }
+
+        .card-header .text-primary {
+            color: var(--primary, #1e7a3a) !important;
+        }
+
+    .card-body {
+        padding: var(--space-4, 1rem) var(--space-4, 1rem);
+    }
+
+    .form-label {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--text-secondary, #57606a);
+        margin-bottom: var(--space-1, 0.25rem);
+        display: block;
+    }
+
+    .form-control, .form-select {
+        border-radius: var(--radius-md, 12px);
+        border: 1.5px solid var(--border, #e9edf2);
+        background: var(--card-bg, #ffffff);
+        color: var(--text, #0d1117);
+        padding: var(--space-2, 0.5rem) var(--space-4, 1rem);
+        min-height: 46px;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        font-size: 0.95rem;
+        width: 100%;
+    }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary, #1e7a3a);
+            box-shadow: 0 0 0 4px rgba(30, 122, 58, 0.12);
+            outline: none;
+        }
+
+        .form-control[type="file"] {
+            padding: var(--space-2, 0.5rem);
+            min-height: auto;
+            border: 1px dashed var(--border, #e9edf2);
+            background: rgba(30, 122, 58, 0.04);
+            cursor: pointer;
+        }
+
+            .form-control[type="file"]:hover {
+                border-color: var(--primary, #1e7a3a);
+                background: rgba(30, 122, 58, 0.06);
+            }
+
+            .form-control[type="file"]::-webkit-file-upload-button {
+                background: var(--gradient-primary, linear-gradient(135deg, #1e7a3a, #2e7d32));
+                color: white;
+                border: none;
+                padding: var(--space-1, 0.25rem) var(--space-4, 1rem);
+                border-radius: var(--radius-sm, 8px);
+                font-weight: 600;
+                cursor: pointer;
+                margin-right: var(--space-3, 0.75rem);
+            }
+
+                .form-control[type="file"]::-webkit-file-upload-button:hover {
+                    filter: brightness(0.9);
+                }
+
+    .form-text {
+        font-size: 0.8rem;
+        color: var(--text-muted, #57606a);
+        margin-top: var(--space-1, 0.25rem);
+    }
+
+    .input-icon-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+
+        .input-icon-wrapper .input-icon {
+            position: absolute;
+            left: var(--space-3, 0.75rem);
+            color: var(--text-muted, #8b949e);
+            font-size: 0.9rem;
+            pointer-events: none;
+        }
+
+        .input-icon-wrapper .form-control {
+            padding-left: calc(var(--space-3, 0.75rem) + 1.5rem);
+        }
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-2, 0.5rem);
+        padding: var(--space-2, 0.5rem) var(--space-5, 1.5rem);
+        border-radius: var(--radius-md, 12px);
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: all 0.15s ease;
+        border: none;
+        cursor: pointer;
+        text-decoration: none;
+        font-family: var(--font-family, system-ui, sans-serif);
+        line-height: 1.5;
+        min-height: 46px;
+    }
+
+    .btn-primary {
+        background: var(--gradient-primary, linear-gradient(135deg, #1e7a3a, #2e7d32));
+        color: white;
+        box-shadow: 0 2px 8px rgba(30, 122, 58, 0.25);
+    }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(30, 122, 58, 0.35);
+            color: white;
+        }
+
+    .btn-outline-primary {
+        color: var(--primary, #1e7a3a);
+        border: 1.5px solid var(--primary, #1e7a3a);
+        background: transparent;
+    }
+
+        .btn-outline-primary:hover {
+            background: var(--gradient-primary, linear-gradient(135deg, #1e7a3a, #2e7d32));
+            color: white;
+            border-color: transparent;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(30, 122, 58, 0.25);
+        }
+
+    .badge.bg-success {
+        background: var(--gradient-primary, linear-gradient(135deg, #1e7a3a, #2e7d32)) !important;
+        color: white;
+        font-weight: 600;
+        padding: var(--space-1, 0.25rem) var(--space-3, 0.75rem);
+        border-radius: 9999px;
+        font-size: 0.7rem;
+    }
+
+    /* ================================================================
+       SCANNING ANIMATION – overlay styles (rice sheaf emoji)
+       ================================================================ */
+    #loadingOverlay {
+        display: none; /* hidden by default */
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .sheaf-container {
+        position: relative;
+        width: 130px;
+        height: 130px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 50%;
+        overflow: hidden;
+        box-shadow: 0 0 40px rgba(245, 179, 66, 0.2);
+        border: 2px solid rgba(245, 179, 66, 0.3);
+    }
+
+    .sheaf-emoji {
+        font-size: 4.5rem;
+        line-height: 1;
+        color: #f5b342;
+        filter: drop-shadow(0 0 8px rgba(245, 179, 66, 0.4));
+    }
+
+    .scan-line {
+        position: absolute;
+        top: -10px;
+        left: 0;
+        width: 100%;
+        height: 4px;
+        background: linear-gradient(90deg, transparent, #f5b342, transparent);
+        box-shadow: 0 0 20px #f5b342;
+        animation: scan 1.8s ease-in-out infinite;
+        border-radius: 2px;
+    }
+
+    @keyframes scan {
+        0% {
+            top: -10px;
+            opacity: 0;
+        }
+
+        20% {
+            opacity: 1;
+        }
+
+        80% {
+            opacity: 1;
+        }
+
+        100% {
+            top: 140px;
+            opacity: 0;
+        }
+    }
+
+    .fa-spinner {
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* ================================================================
+       DARK MODE
+       ================================================================ */
+    body.dark-mode .card {
+        border-color: var(--border, #30363d);
+        background: var(--card-bg, #161b22);
+    }
+
+    body.dark-mode .card-header {
+        border-bottom-color: var(--border, #30363d);
+        color: #f0f6fc;
+    }
+
+    body.dark-mode .form-control,
+    body.dark-mode .form-select {
+        background: var(--card-bg, #161b22);
+        color: #f0f6fc;
+        border-color: var(--border, #30363d);
+    }
+
+        body.dark-mode .form-control:focus,
+        body.dark-mode .form-select:focus {
+            border-color: var(--primary-light, #58a6ff);
+            box-shadow: 0 0 0 4px rgba(30, 122, 58, 0.2);
+        }
+
+        body.dark-mode .form-control[type="file"] {
+            background: rgba(30, 122, 58, 0.06);
+            border-color: var(--border, #30363d);
+        }
+
+            body.dark-mode .form-control[type="file"]:hover {
+                border-color: var(--primary-light, #58a6ff);
+                background: rgba(30, 122, 58, 0.1);
+            }
+
+            body.dark-mode .form-control[type="file"]::-webkit-file-upload-button {
+                background: var(--gradient-primary, linear-gradient(135deg, #1e7a3a, #2e7d32));
+                color: white;
+            }
+
+    body.dark-mode .form-text {
+        color: #8b949e;
+    }
+
+    body.dark-mode .btn-outline-primary {
+        color: var(--primary-light, #58a6ff);
+        border-color: var(--primary-light, #58a6ff);
+    }
+
+        body.dark-mode .btn-outline-primary:hover {
+            background: var(--gradient-primary, linear-gradient(135deg, #1e7a3a, #2e7d32));
+            color: white;
+            border-color: transparent;
+        }
+
+    body.dark-mode .badge.bg-success {
+        background: var(--gradient-primary, linear-gradient(135deg, #1e7a3a, #2e7d32)) !important;
+        color: white;
+    }
+
+    body.dark-mode .text-muted {
+        color: #8b949e !important;
+    }
+
+    body.dark-mode #loadingOverlay {
+        background: rgba(0, 0, 0, 0.85);
+    }
+
+    /* ================================================================
+       RESPONSIVE – Close button moved further down
+       ================================================================ */
+    @media (max-width: 575.98px) {
+        .page-title {
+            font-size: 1.25rem;
+        }
+
+        .card-body {
+            padding: var(--space-3, 0.75rem);
+        }
+
+        .btn {
+            font-size: 0.85rem;
+            padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+            min-height: 40px;
+        }
+
+        .form-control, .form-select {
+            font-size: 0.9rem;
+            min-height: 40px;
+        }
+
+        .card-header {
+            font-size: 0.9rem;
+            padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+        }
+
+        .col-md-6.order-md-1.order-1 {
+            order: 1 !important;
+        }
+
+        .col-md-6.order-md-2.order-2 {
+            order: 2 !important;
+        }
+
+        /* Camera overlay */
+        #close-camera-btn {
+            top: 75px !important;
+            right: 16px !important;
+            width: 50px !important;
+            height: 50px !important;
+            font-size: 1.6rem !important;
+            box-shadow: 0 0 20px rgba(255,255,255,0.25) !important;
+            border-width: 2.5px !important;
+        }
+
+        #capture-btn {
+            min-width: 170px !important;
+            padding: 14px 24px !important;
+            font-size: 1rem !important;
+            gap: 12px !important;
+            border-radius: 40px !important;
+        }
+
+            #capture-btn i {
+                font-size: 1.4rem !important;
+            }
+
+        .camera-capture-wrapper {
+            bottom: 100px !important;
+        }
+
+        #video {
+            max-height: 100% !important;
+        }
+
+        /* Loading overlay adjustments */
+        .sheaf-container {
+            width: 90px;
+            height: 90px;
+        }
+
+        .sheaf-emoji {
+            font-size: 3rem !important;
+        }
+
+        .scan-line {
+            height: 3px;
+        }
+
+        @keyframes scan {
+            0% {
+                top: -10px;
+                opacity: 0;
+            }
+
+            20% {
+                opacity: 1;
+            }
+
+            80% {
+                opacity: 1;
+            }
+
+            100% {
+                top: 100px;
+                opacity: 0;
+            }
+        }
+
+        #loadingOverlay p {
+            font-size: 1rem !important;
+        }
+    }
+
+    @media (max-width: 399.98px) {
+        #close-camera-btn {
+            top: 70px !important;
+            width: 44px !important;
+            height: 44px !important;
+            font-size: 1.3rem !important;
+            right: 12px !important;
+        }
+
+        #capture-btn {
+            min-width: 150px !important;
+            padding: 12px 18px !important;
+            font-size: 0.9rem !important;
+            gap: 8px !important;
+        }
+
+            #capture-btn i {
+                font-size: 1.2rem !important;
+            }
+
+        .camera-capture-wrapper {
+            bottom: 80px !important;
+        }
+
+        .sheaf-container {
+            width: 70px;
+            height: 70px;
+        }
+
+        .sheaf-emoji {
+            font-size: 2.2rem !important;
+        }
+
+        .scan-line {
+            height: 2px;
+        }
+
+        @keyframes scan {
+            0% {
+                top: -10px;
+                opacity: 0;
+            }
+
+            20% {
+                opacity: 1;
+            }
+
+            80% {
+                opacity: 1;
+            }
+
+            100% {
+                top: 80px;
+                opacity: 0;
+            }
+        }
+    }
+
+    @media (min-width: 576px) and (max-width: 767.98px) {
+        .card-body {
+            padding: var(--space-4, 1rem);
+        }
+
+        #close-camera-btn {
+            top: 80px !important;
+            width: 52px !important;
+            height: 52px !important;
+            font-size: 1.7rem !important;
+        }
+
+        #capture-btn {
+            min-width: 190px !important;
+            padding: 16px 30px !important;
+            font-size: 1.1rem !important;
+        }
+
+        .camera-capture-wrapper {
+            bottom: 110px !important;
+        }
+
+        .sheaf-container {
+            width: 100px;
+            height: 100px;
+        }
+
+        .sheaf-emoji {
+            font-size: 3.5rem !important;
+        }
+
+        @keyframes scan {
+            0% {
+                top: -10px;
+                opacity: 0;
+            }
+
+            20% {
+                opacity: 1;
+            }
+
+            80% {
+                opacity: 1;
+            }
+
+            100% {
+                top: 110px;
+                opacity: 0;
+            }
+        }
+    }
+
+    @media (min-width: 768px) {
+        .page-title {
+            font-size: 1.75rem;
+        }
+
+        .card-body {
+            padding: var(--space-5, 1.5rem);
+        }
+
+        .card-header {
+            padding: var(--space-3, 0.75rem) var(--space-5, 1.5rem);
+        }
+
+        #capture-btn {
+            min-width: 240px;
+            padding: 20px 44px;
+            font-size: 1.4rem;
+            gap: 18px;
+        }
+
+            #capture-btn i {
+                font-size: 2rem;
+            }
+
+        #close-camera-btn {
+            top: 100px;
+            width: 60px;
+            height: 60px;
+            font-size: 2rem;
+        }
+
+        .camera-capture-wrapper {
+            bottom: 140px;
+        }
+
+        .sheaf-container {
+            width: 130px;
+            height: 130px;
+        }
+
+        .sheaf-emoji {
+            font-size: 4.5rem;
+        }
+
+        @keyframes scan {
+            0% {
+                top: -10px;
+                opacity: 0;
+            }
+
+            20% {
+                opacity: 1;
+            }
+
+            80% {
+                opacity: 1;
+            }
+
+            100% {
+                top: 140px;
+                opacity: 0;
+            }
+        }
+    }
+    /* Dark mode overrides for the error modal */
+    body.dark-mode .modal-content {
+        background: var(--card-bg, #1e1e2f);
+        border-color: var(--border, #2d2d44);
+        color: var(--text, #e4e6eb);
+    }
+
+    body.dark-mode .modal-header {
+        border-bottom-color: var(--border, #2d2d44);
+    }
+
+    body.dark-mode .btn-close {
+        filter: invert(1) brightness(200%);
+    }
+
+    body.dark-mode .form-check-input {
+        background-color: #2d2d44;
+        border-color: #4a4a6a;
+    }
+
+    body.dark-mode .form-check-label {
+        color: var(--text, #e4e6eb);
+    }
+
+    body.dark-mode .text-muted {
+        color: #a0a0b8 !important;
+    }
+
+    body.dark-mode .modal-backdrop {
+        background: rgba(0, 0, 0, 0.7);
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,510 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ disease.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mt-3 mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('disease_list') }}">{{ 'Disease Library' | translate }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ disease.name }}</li>
+        </ol>
+    </nav>
+
+    <!-- Main Card -->
+    <div class="card disease-detail-card">
+        <!-- Header with gradient -->
+        <div class="card-header disease-detail-header">
+            <h1 class="disease-title">{{ disease.name }}</h1>
+            <div class="disease-meta">
+                <span><i class="fas fa-tag me-1"></i>{{ disease.category_name or 'Uncategorized' }}</span>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <!-- Image + Description row -->
+            <div class="row g-5">
+                <div class="col-md-5">
+                    <div class="disease-image-wrapper">
+                        {% if images %}
+                        <!-- Carousel -->
+                        <div id="diseaseCarousel" class="carousel slide" data-bs-ride="carousel">
+                            <div class="carousel-inner">
+                                {% for img in images %}
+                                <div class="carousel-item {% if loop.first %}active{% endif %}">
+                                    <img src="{{ url_for('static', filename='uploads/' + img.image_path) }}" class="d-block w-100 disease-image" alt="{{ disease.name }}">
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% if images|length > 1 %}
+                            <button class="carousel-control-prev" type="button" data-bs-target="#diseaseCarousel" data-bs-slide="prev">
+                                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                <span class="visually-hidden">Previous</span>
+                            </button>
+                            <button class="carousel-control-next" type="button" data-bs-target="#diseaseCarousel" data-bs-slide="next">
+                                <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                                <span class="visually-hidden">Next</span>
+                            </button>
+                            {% endif %}
+                        </div>
+                        <!-- Thumbnails -->
+                        <div class="image-thumbnails mt-2 d-flex flex-wrap gap-2">
+                            {% for img in images %}
+                            <img src="{{ url_for('static', filename='uploads/' + img.image_path) }}"
+                                 class="img-thumbnail thumbnail-img"
+                                 data-target="#diseaseCarousel"
+                                 data-slide-to="{{ loop.index0 }}"
+                                 style="width: 60px; height: 60px; object-fit: cover; cursor: pointer;">
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="disease-image-placeholder">
+                            <i class="fas fa-leaf fa-4x"></i>
+                            <span>{{ 'No image available' | translate }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-7">
+                    <div class="description-wrapper">
+                        <h4 class="section-title">{{ 'Description' | translate }}</h4>
+                        <p class="disease-description">{{ disease.description or ('No description available.' | translate) }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="section-divider">
+
+            <!-- Symptoms & Causes -->
+            <div class="row g-4 mt-3">
+                <div class="col-md-6">
+                    <div class="info-section">
+                        <h5 class="info-section-title"><i class="fas fa-notes-medical me-2"></i>{{ 'Symptoms' | translate }}</h5>
+                        <div class="info-section-content">{{ disease.symptoms|replace('\n', '<br>')|safe if disease.symptoms else ('No information available.' | translate) }}</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="info-section">
+                        <h5 class="info-section-title"><i class="fas fa-microscope me-2"></i>{{ 'Causes' | translate }}</h5>
+                        <div class="info-section-content">{{ disease.causes|replace('\n', '<br>')|safe if disease.causes else ('No information available.' | translate) }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prevention & Treatment -->
+            <div class="row g-4 mt-4">
+                <div class="col-md-6">
+                    <div class="info-section">
+                        <h5 class="info-section-title"><i class="fas fa-shield-alt me-2"></i>{{ 'Prevention' | translate }}</h5>
+                        <div class="info-section-content">{{ disease.prevention|replace('\n', '<br>')|safe if disease.prevention else ('No information available.' | translate) }}</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="info-section">
+                        <h5 class="info-section-title"><i class="fas fa-pills me-2"></i>{{ 'Treatment' | translate }}</h5>
+                        <div class="info-section-content">{{ disease.treatment|replace('\n', '<br>')|safe if disease.treatment else ('No information available.' | translate) }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Back Button -->
+    <div class="text-center mt-4">
+        <a href="{{ url_for('disease_list') }}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left me-2"></i>{{ 'Back to Library' | translate }}
+        </a>
+    </div>
+
+</div>
+
+<!-- Page-specific fine-tuning -->
+<style>
+    .breadcrumb {
+        background: transparent;
+        padding: 0;
+        margin: 0;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    .breadcrumb-item a {
+        color: var(--primary);
+        text-decoration: none;
+        transition: color var(--transition-fast);
+    }
+
+        .breadcrumb-item a:hover {
+            color: var(--primary-dark);
+            text-decoration: underline;
+        }
+
+    .breadcrumb-item.active {
+        color: var(--text-secondary);
+        font-weight: 600;
+    }
+
+    .breadcrumb-item + .breadcrumb-item::before {
+        content: "›";
+        color: var(--text-muted);
+        font-size: 1.1rem;
+        padding: 0 var(--space-2);
+    }
+
+    .disease-detail-card {
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--border);
+        background: var(--card-bg);
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+        transition: box-shadow var(--transition-base);
+    }
+
+        .disease-detail-card:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+    .disease-detail-header {
+        background: var(--gradient-primary);
+        color: white;
+        padding: var(--space-4) var(--space-5);
+        border-bottom: none;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--space-3);
+    }
+
+    .disease-title {
+        font-family: var(--font-heading);
+        font-weight: 800;
+        font-size: 2rem;
+        letter-spacing: -0.02em;
+        margin: 0;
+        line-height: 1.2;
+    }
+
+    .disease-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-3);
+        font-size: 0.9rem;
+        opacity: 0.9;
+        font-weight: 500;
+    }
+
+        .disease-meta span {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-1);
+        }
+
+        .disease-meta i {
+            opacity: 0.7;
+        }
+
+    .disease-detail-card .card-body {
+        padding: var(--space-5);
+    }
+
+    .disease-image-wrapper {
+        border-radius: var(--radius-md);
+        overflow: hidden;
+        background: var(--gradient-primary-subtle);
+        min-height: 200px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .disease-image {
+        width: 100%;
+        height: auto;
+        object-fit: cover;
+        max-height: 400px;
+        transition: transform var(--transition-slow);
+    }
+
+    .disease-image-wrapper:hover .disease-image {
+        transform: scale(1.02);
+    }
+
+    .disease-image-placeholder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: var(--space-5);
+        color: var(--text-muted);
+        text-align: center;
+        min-height: 250px;
+        gap: var(--space-3);
+    }
+
+        .disease-image-placeholder i {
+            opacity: 0.3;
+            color: var(--primary);
+        }
+
+        .disease-image-placeholder span {
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+    .image-thumbnails {
+        margin-top: var(--space-2);
+        justify-content: center;
+    }
+
+    .thumbnail-img {
+        border: 2px solid transparent;
+        transition: border-color var(--transition-fast);
+        width: 60px;
+        height: 60px;
+        object-fit: cover;
+        cursor: pointer;
+        border-radius: var(--radius-sm);
+    }
+
+        .thumbnail-img:hover {
+            border-color: var(--primary);
+        }
+
+        .thumbnail-img.active {
+            border-color: var(--primary);
+        }
+
+    .section-title {
+        font-family: var(--font-heading);
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: var(--space-2);
+        font-size: 1.15rem;
+    }
+
+    .disease-description {
+        font-size: 1.05rem;
+        line-height: 1.8;
+        color: var(--text);
+        margin-bottom: 0;
+    }
+
+    .section-divider {
+        border: 0;
+        border-top: 2px solid var(--border-light);
+        margin: var(--space-5) 0;
+    }
+
+    .info-section {
+        padding: var(--space-4) var(--space-4);
+        background: var(--gradient-primary-subtle);
+        border-radius: var(--radius-md);
+        border-left: 4px solid var(--primary);
+        transition: background var(--transition-fast);
+        height: 100%;
+    }
+
+        .info-section:hover {
+            background: rgba(30, 122, 58, 0.06);
+        }
+
+    .info-section-title {
+        font-family: var(--font-heading);
+        font-weight: 700;
+        color: var(--primary);
+        font-size: 1.05rem;
+        margin-bottom: var(--space-2);
+        display: flex;
+        align-items: center;
+    }
+
+    .info-section-content {
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: var(--text);
+        margin-bottom: 0;
+        white-space: normal;
+        word-break: break-word;
+    }
+
+        .info-section-content br {
+            display: block;
+            content: "";
+            margin: 2px 0;
+        }
+
+    .btn-outline-primary {
+        color: var(--primary);
+        border: 2px solid var(--primary);
+        background: transparent;
+        padding: var(--space-2) var(--space-5);
+        border-radius: var(--radius-md);
+        font-weight: 600;
+        transition: all var(--transition-fast);
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-2);
+        min-height: 46px;
+        font-size: 0.95rem;
+    }
+
+        .btn-outline-primary:hover {
+            background: var(--gradient-primary);
+            color: white;
+            border-color: transparent;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(30, 122, 58, 0.25);
+        }
+
+    body.dark-mode .disease-detail-card {
+        border-color: var(--border);
+        background: var(--card-bg);
+    }
+
+    body.dark-mode .disease-detail-header {
+        background: var(--gradient-primary);
+    }
+
+    body.dark-mode .info-section {
+        background: rgba(30, 122, 58, 0.08);
+        border-left-color: var(--primary-light);
+    }
+
+        body.dark-mode .info-section:hover {
+            background: rgba(30, 122, 58, 0.15);
+        }
+
+    body.dark-mode .btn-outline-primary {
+        color: var(--primary-light);
+        border-color: var(--primary-light);
+    }
+
+        body.dark-mode .btn-outline-primary:hover {
+            background: var(--gradient-primary);
+            color: white;
+            border-color: transparent;
+        }
+
+    body.dark-mode .disease-image-placeholder i {
+        color: var(--primary-light);
+    }
+
+    body.dark-mode .section-divider {
+        border-top-color: var(--border);
+    }
+
+    body.dark-mode .thumbnail-img {
+        border-color: var(--border);
+    }
+
+        body.dark-mode .thumbnail-img:hover,
+        body.dark-mode .thumbnail-img.active {
+            border-color: var(--primary-light);
+        }
+
+    @media (max-width: 576px) {
+        .disease-title {
+            font-size: 1.6rem;
+        }
+
+        .disease-detail-header {
+            flex-direction: column;
+            align-items: flex-start;
+            padding: var(--space-3) var(--space-4);
+        }
+
+        .disease-meta {
+            font-size: 0.8rem;
+            gap: var(--space-2);
+        }
+
+        .disease-detail-card .card-body {
+            padding: var(--space-3);
+        }
+
+        .disease-image-wrapper {
+            min-height: 150px;
+        }
+
+        .disease-description {
+            font-size: 0.95rem;
+        }
+
+        .info-section {
+            padding: var(--space-3);
+        }
+
+        .info-section-title {
+            font-size: 0.95rem;
+        }
+
+        .info-section-content {
+            font-size: 0.9rem;
+        }
+
+        .btn-outline-primary {
+            padding: var(--space-2) var(--space-4);
+            font-size: 0.85rem;
+            min-height: 40px;
+        }
+
+        .row.g-4 {
+            --bs-gutter-y: 1rem;
+        }
+
+        .thumbnail-img {
+            width: 50px;
+            height: 50px;
+        }
+    }
+
+    @media (min-width: 768px) {
+        .disease-detail-card .card-body {
+            padding: var(--space-6);
+        }
+
+        .disease-title {
+            font-size: 2.4rem;
+        }
+
+        .disease-description {
+            font-size: 1.1rem;
+        }
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Thumbnail click -> navigate carousel
+        const thumbnails = document.querySelectorAll('.thumbnail-img');
+        thumbnails.forEach(function(thumb) {
+            thumb.addEventListener('click', function() {
+                const target = this.getAttribute('data-target');
+                const slideTo = this.getAttribute('data-slide-to');
+                const carousel = document.querySelector(target);
+                if (carousel) {
+                    const bsCarousel = bootstrap.Carousel.getInstance(carousel);
+                    if (bsCarousel) {
+                        bsCarousel.to(parseInt(slideTo));
+                    } else {
+                        // If carousel not initialized yet
+                        const newCarousel = new bootstrap.Carousel(carousel);
+                        newCarousel.to(parseInt(slideTo));
+                    }
+                    // Update active thumbnail
+                    thumbnails.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                }
+            });
+        });
+        // Set first thumbnail active if carousel exists
+        if (thumbnails.length > 0) {
+            thumbnails[0].classList.add('active');
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,619 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ 'Disease Library' | translate }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-4">
+
+    <!-- ============================================================
+    PAGE HEADER
+    ============================================================ -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <h1 class="page-title">
+            <i class="fas fa-book me-2 text-primary"></i>{{ 'Rice Disease Library' | translate }}
+        </h1>
+        <span class="text-muted d-none d-sm-inline">{{ diseases|length }} {{ 'diseases' | translate }}</span>
+    </div>
+
+    <!-- ============================================================
+    SEARCH AND FILTER BAR (card) – no filter button
+    ============================================================ -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+            <form method="get" action="{{ url_for('disease_list') }}" class="row g-3 align-items-end" id="filterForm">
+                <div class="col-md-6">
+                    <label for="searchInput" class="form-label">{{ 'Search' | translate }}</label>
+                    <div class="input-icon-wrapper">
+                        <i class="fas fa-search input-icon"></i>
+                        <input type="text" class="form-control" name="q" id="searchInput" value="{{ search }}" placeholder="{{ 'Search by name or description...' | translate }}">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label for="categorySelect" class="form-label">{{ 'Category' | translate }}</label>
+                    <select class="form-select" name="category" id="categorySelect">
+                        <option value="">{{ 'All Categories' | translate }}</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}" {% if cat==selected_category %}selected{% endif %}>{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <!-- No button – auto‑submit via JS -->
+            </form>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    DISEASE CARDS GRID
+    ============================================================ -->
+    {% if diseases %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        {% for disease in diseases %}
+        <div class="col">
+            <!-- REMOVED border-0 so the border can change on hover -->
+            <div class="card shadow-sm disease-library-card h-100">
+                <!-- Image grid: up to 3 images -->
+                <div class="card-img-top disease-library-image">
+                    {% set images = disease.images|default([]) %}
+                    {% if images|length >= 3 %}
+                    <!-- 3-image grid: 2x2 layout with one large on left -->
+                    <div class="image-grid-3">
+                        <div class="grid-main">
+                            <img src="{{ url_for('static', filename='uploads/' + images[0]) }}" alt="{{ disease.name }}" loading="lazy">
+                        </div>
+                        <div class="grid-side">
+                            <div class="grid-side-top">
+                                <img src="{{ url_for('static', filename='uploads/' + images[1]) }}" alt="{{ disease.name }}" loading="lazy">
+                            </div>
+                            <div class="grid-side-bottom">
+                                <img src="{{ url_for('static', filename='uploads/' + images[2]) }}" alt="{{ disease.name }}" loading="lazy">
+                            </div>
+                        </div>
+                    </div>
+                    {% elif images|length == 2 %}
+                    <!-- 2-image grid: two equal columns -->
+                    <div class="image-grid-2">
+                        <img src="{{ url_for('static', filename='uploads/' + images[0]) }}" alt="{{ disease.name }}" loading="lazy">
+                        <img src="{{ url_for('static', filename='uploads/' + images[1]) }}" alt="{{ disease.name }}" loading="lazy">
+                    </div>
+                    {% elif images|length == 1 %}
+                    <!-- Single image -->
+                    <img src="{{ url_for('static', filename='uploads/' + images[0]) }}" alt="{{ disease.name }}" loading="lazy">
+                    {% else %}
+                    <!-- No image fallback -->
+                    <i class="fas fa-leaf fa-4x text-muted"></i>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ disease.name }}</h5>
+                    <p class="card-text text-muted small disease-description">
+                        {% if disease.description %}
+                        {{ disease.description[:120] }}...
+                        {% else %}
+                        {{ 'No description available.' | translate }}
+                        {% endif %}
+                    </p>
+                    <p class="text-muted small mb-2">
+                        <i class="fas fa-tag me-1"></i>{{ 'Category' | translate }}: {{ disease.category_name or ('Uncategorized' | translate) }}
+                    </p>
+                    <a href="{{ url_for('disease_detail', disease_id=disease.id) }}" class="btn btn-outline-primary w-100">
+                        {{ 'Read More' | translate }} <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- ============================================================
+    PAGINATION
+    ============================================================ -->
+    <nav aria-label="Page navigation" class="mt-5">
+        <ul class="pagination justify-content-center">
+            {% if page > 1 %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('disease_list', page=page-1, q=search, category=selected_category) }}">
+                    <i class="fas fa-chevron-left"></i> {{ 'Previous' | translate }}
+                </a>
+            </li>
+            {% endif %}
+            {% for p in range(1, total_pages+1) %}
+            <li class="page-item {% if p == page %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('disease_list', page=p, q=search, category=selected_category) }}">{{ p }}</a>
+            </li>
+            {% endfor %}
+            {% if page < total_pages %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('disease_list', page=page+1, q=search, category=selected_category) }}">
+                    {{ 'Next' | translate }} <i class="fas fa-chevron-right"></i>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% else %}
+    <!-- Empty state -->
+    <div class="card shadow-sm border-0">
+        <div class="card-body py-5 text-center">
+            <i class="fas fa-inbox fa-3x text-muted mb-3 d-block"></i>
+            <p class="text-muted">{{ 'No diseases found.' | translate }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- ============================================================
+STYLES – with green hover border + green search hover
+============================================================ -->
+<style>
+    /* ── page title ── */
+    .page-title {
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        font-weight: 700;
+        font-size: 1.5rem;
+        letter-spacing: -0.02em;
+        color: #0d1117;
+        margin: 0;
+    }
+
+    body.dark-mode .page-title {
+        color: #f0f6fc;
+    }
+
+    /* ── search and filter bar ── */
+    .card-body {
+        padding: 1rem 1rem;
+    }
+
+    @media (min-width: 768px) {
+        .card-body {
+            padding: 1.5rem;
+        }
+    }
+
+    .input-icon-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+
+        .input-icon-wrapper .input-icon {
+            position: absolute;
+            left: 0.75rem;
+            color: #8b949e;
+            font-size: 0.9rem;
+            pointer-events: none;
+        }
+
+        .input-icon-wrapper .form-control {
+            padding-left: calc(0.75rem + 1.5rem);
+            border-radius: 12px;
+            border: 1.5px solid #e9edf2;
+            background: #ffffff;
+            color: #0d1117;
+            min-height: 46px;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            font-size: 0.95rem;
+            width: 100%;
+        }
+            /* ── search input hover & focus (green) ── */
+            .input-icon-wrapper .form-control:hover {
+                border-color: #1e7a3a;
+            }
+
+            .input-icon-wrapper .form-control:focus {
+                border-color: #1e7a3a;
+                box-shadow: 0 0 0 4px rgba(30,122,58,0.12);
+                outline: none;
+            }
+
+    body.dark-mode .input-icon-wrapper .form-control {
+        background: #161b22;
+        color: #f0f6fc;
+        border-color: #30363d;
+    }
+
+        body.dark-mode .input-icon-wrapper .form-control:hover {
+            border-color: #4caf50;
+        }
+
+        body.dark-mode .input-icon-wrapper .form-control:focus {
+            border-color: #4caf50;
+            box-shadow: 0 0 0 4px rgba(76,175,80,0.2);
+            outline: none;
+        }
+
+    .form-select {
+        border-radius: 12px;
+        border: 1.5px solid #e9edf2;
+        background: #ffffff;
+        color: #0d1117;
+        padding: 0.5rem 1rem;
+        min-height: 46px;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        font-size: 0.95rem;
+        width: 100%;
+    }
+        /* ── select hover & focus (green) ── */
+        .form-select:hover {
+            border-color: #1e7a3a;
+        }
+
+        .form-select:focus {
+            border-color: #1e7a3a;
+            box-shadow: 0 0 0 4px rgba(30,122,58,0.12);
+            outline: none;
+        }
+
+    body.dark-mode .form-select {
+        background: #161b22;
+        color: #f0f6fc;
+        border-color: #30363d;
+    }
+
+        body.dark-mode .form-select:hover {
+            border-color: #4caf50;
+        }
+
+        body.dark-mode .form-select:focus {
+            border-color: #4caf50;
+            box-shadow: 0 0 0 4px rgba(76,175,80,0.2);
+            outline: none;
+        }
+
+    .form-label {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: #57606a;
+        margin-bottom: 0.25rem;
+    }
+
+    /* ── buttons ── */
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: all 0.15s ease;
+        border: none;
+        cursor: pointer;
+        text-decoration: none;
+        font-family: system-ui, sans-serif;
+        line-height: 1.5;
+        min-height: 46px;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #1e7a3a, #2e7d32);
+        color: white;
+        box-shadow: 0 2px 8px rgba(30,122,58,0.25);
+    }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(30,122,58,0.35);
+            color: white;
+        }
+
+    .btn-outline-primary {
+        color: #1e7a3a;
+        border: 1.5px solid #1e7a3a;
+        background: transparent;
+    }
+
+        .btn-outline-primary:hover {
+            background: linear-gradient(135deg, #1e7a3a, #2e7d32);
+            color: white;
+            border-color: transparent;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(30,122,58,0.25);
+        }
+
+    /* ── disease cards – green hover border ── */
+    .disease-library-card {
+        border-radius: 16px;
+        overflow: hidden;
+        background: #ffffff;
+        border: 1px solid #e9edf2;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+        .disease-library-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.15);
+            border-color: #1e7a3a; /* green */
+        }
+
+    .disease-library-image {
+        height: 180px;
+        background: rgba(30, 122, 58, 0.04);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+    }
+
+        .disease-library-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+    .disease-library-card:hover .disease-library-image img {
+        transform: scale(1.03);
+    }
+
+    .disease-library-image i {
+        opacity: 0.3;
+        color: #1e7a3a;
+    }
+
+    /* ── image grids ── */
+    .image-grid-3 {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 2px;
+        width: 100%;
+        height: 100%;
+    }
+
+        .image-grid-3 .grid-main {
+            grid-row: 1 / 3;
+        }
+
+        .image-grid-3 .grid-side {
+            display: grid;
+            grid-template-rows: 1fr 1fr;
+            gap: 2px;
+        }
+
+            .image-grid-3 .grid-main img,
+            .image-grid-3 .grid-side img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                display: block;
+            }
+
+    .image-grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2px;
+        width: 100%;
+        height: 100%;
+    }
+
+        .image-grid-2 img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+    .disease-library-card .card-body {
+        padding: 1rem 1rem 1rem;
+    }
+
+    .disease-library-card .card-title {
+        font-family: 'Inter', sans-serif;
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #0d1117;
+        margin-bottom: 0.5rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .disease-description {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        color: #57606a;
+        min-height: 2.8rem;
+    }
+
+    .disease-library-card .btn {
+        min-height: 38px;
+    }
+
+    /* ── pagination ── */
+    .pagination {
+        gap: 0.25rem;
+    }
+
+    .page-item .page-link {
+        border-radius: 8px;
+        border: 1px solid #e9edf2;
+        background: #ffffff;
+        color: #0d1117;
+        padding: 0.5rem 0.75rem;
+        font-weight: 500;
+        transition: all 0.15s ease;
+        font-size: 0.9rem;
+        min-width: 40px;
+        text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.25rem;
+        text-decoration: none;
+    }
+
+        .page-item .page-link:hover {
+            background: rgba(30,122,58,0.06);
+            border-color: #1e7a3a;
+            color: #1e7a3a;
+        }
+
+    .page-item.active .page-link {
+        background: linear-gradient(135deg, #1e7a3a, #2e7d32);
+        border-color: #1e7a3a;
+        color: white;
+        box-shadow: 0 2px 8px rgba(30,122,58,0.25);
+    }
+
+        .page-item.active .page-link:hover {
+            background: linear-gradient(135deg, #1e7a3a, #2e7d32);
+            border-color: #1e7a3a;
+            color: white;
+        }
+
+    .page-item.disabled .page-link {
+        opacity: 0.5;
+        cursor: not-allowed;
+        background: #ffffff;
+    }
+
+    /* ================================================================
+       DARK MODE – green hover border
+       ================================================================ */
+    body.dark-mode .disease-library-card {
+        border-color: #30363d;
+        background: #161b22;
+    }
+
+        body.dark-mode .disease-library-card:hover {
+            border-color: #4caf50; /* green */
+        }
+
+    body.dark-mode .disease-library-image {
+        background: rgba(30,122,58,0.08);
+    }
+
+    body.dark-mode .disease-library-card .card-title {
+        color: #f0f6fc;
+    }
+
+    body.dark-mode .disease-description {
+        color: #8b949e;
+    }
+
+    body.dark-mode .btn-outline-primary {
+        color: #4caf50;
+        border-color: #4caf50;
+    }
+
+        body.dark-mode .btn-outline-primary:hover {
+            background: linear-gradient(135deg, #1e7a3a, #2e7d32);
+            color: white;
+            border-color: transparent;
+        }
+
+    body.dark-mode .page-item .page-link {
+        background: #161b22;
+        border-color: #30363d;
+        color: #f0f6fc;
+    }
+
+        body.dark-mode .page-item .page-link:hover {
+            background: rgba(76,175,80,0.15);
+            border-color: #4caf50;
+            color: #4caf50;
+        }
+
+    body.dark-mode .page-item.active .page-link {
+        background: linear-gradient(135deg, #1e7a3a, #2e7d32);
+        border-color: #1e7a3a;
+        color: white;
+    }
+
+        body.dark-mode .page-item.active .page-link:hover {
+            background: linear-gradient(135deg, #1e7a3a, #2e7d32);
+            border-color: #1e7a3a;
+            color: white;
+        }
+
+    body.dark-mode .text-muted {
+        color: #8b949e !important;
+    }
+
+    /* ================================================================
+       RESPONSIVE
+       ================================================================ */
+    @media (max-width: 575.98px) {
+        .page-title {
+            font-size: 1.25rem;
+        }
+
+        .card-body {
+            padding: 0.75rem;
+        }
+
+        .disease-library-image {
+            height: 140px;
+        }
+
+        .disease-library-card .card-title {
+            font-size: 1rem;
+        }
+
+        .btn {
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+            min-height: 40px;
+        }
+
+        .input-icon-wrapper .form-control,
+        .form-select {
+            min-height: 40px;
+            font-size: 0.9rem;
+        }
+
+        .page-item .page-link {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.8rem;
+            min-width: 34px;
+        }
+
+        .pagination {
+            gap: 0.25rem;
+        }
+    }
+
+    @media (min-width: 768px) {
+        .page-title {
+            font-size: 1.75rem;
+        }
+
+        .disease-library-image {
+            height: 200px;
+        }
+    }
+</style>
+
+<!-- ============================================================
+JAVASCRIPT – auto‑submit on dropdown change or Enter key
+============================================================ -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('filterForm');
+        const searchInput = document.getElementById('searchInput');
+        const categorySelect = document.getElementById('categorySelect');
+
+        // Auto‑submit on dropdown change
+        categorySelect.addEventListener('change', function() {
+            form.submit();
+        });
+
+        // Auto‑submit on Enter key in search input
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                form.submit();
+            }
+        });
+    });
+</script>
+{% endblock %}

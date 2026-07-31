@@ -1,0 +1,886 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-4">
+
+    <!-- Page Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <h1 class="page-title">
+            <i class="fas fa-chart-bar me-2 text-primary"></i>{{ 'Disease Scan Reports' | translate }}
+        </h1>
+        <span class="text-muted d-none d-sm-inline">{{ 'Analytics & Insights' | translate }}</span>
+    </div>
+
+    <!-- Stat Cards (Geotagged removed) -->
+    <div class="row g-3 g-md-4 mb-5">
+        <div class="col-6 col-md-4 col-xl-3">
+            <div class="stat-card stat-card-primary">
+                <div class="stat-icon"><i class="fas fa-camera"></i></div>
+                <div class="stat-content">
+                    <div class="stat-label">{{ 'Total Scans' | translate }}</div>
+                    <div class="stat-number">{{ total_scans }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+            <div class="stat-card stat-card-success">
+                <div class="stat-icon"><i class="fas fa-users"></i></div>
+                <div class="stat-content">
+                    <div class="stat-label">{{ 'Active Farmers' | translate }}</div>
+                    <div class="stat-number">{{ unique_farmers }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+            <div class="stat-card stat-card-accent">
+                <div class="stat-icon"><i class="fas fa-leaf"></i></div>
+                <div class="stat-content">
+                    <div class="stat-label">{{ 'Diseases Detected' | translate }}</div>
+                    <div class="stat-number">{{ diseases_detected }}</div>
+                </div>
+            </div>
+        </div>
+        <!-- Geotagged card removed -->
+    </div>
+
+    <!-- Row 1: Disease Distribution + Scans Over Time -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-transparent border-bottom">
+                    <i class="fas fa-chart-pie me-2 text-primary"></i>{{ 'Disease Distribution' | translate }}
+                </div>
+                <div class="card-body chart-container">
+                    <canvas id="diseaseChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-transparent border-bottom">
+                    <i class="fas fa-chart-line me-2 text-primary"></i>{{ 'Scans Over Time (Last 30 Days)' | translate }}
+                </div>
+                <div class="card-body chart-container">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 2: Barangay Breakdown -->
+    <div class="row g-4 mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-transparent border-bottom">
+                    <i class="fas fa-map-marked-alt me-2 text-primary"></i>{{ 'Scans by Barangay' | translate }}
+                </div>
+                <div class="card-body chart-container chart-container-wide">
+                    <canvas id="barangayChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 3: Top Farmers + Confidence Table -->
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-transparent border-bottom">
+                    <i class="fas fa-users me-2 text-primary"></i>{{ 'Top 5 Most Active Farmers' | translate }}
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>{{ 'Farmer' | translate }}</th>
+                                    <th>{{ 'Barangay' | translate }}</th>
+                                    <th class="text-center">{{ 'Scans' | translate }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for farmer in top_farmers %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="user-initials">{{ farmer.fullname|first|upper }}</span>
+                                            {{ farmer.fullname }}
+                                        </div>
+                                    </td>
+                                    <td>{{ farmer.barangay or 'N/A' }}</td>
+                                    <td class="text-center"><span class="badge bg-primary">{{ farmer.scan_count }}</span></td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="3" class="text-center text-muted py-4">{{ 'No data available.' | translate }}</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-transparent border-bottom">
+                    <i class="fas fa-percent me-2 text-primary"></i>{{ 'AI Confidence by Disease' | translate }}
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>{{ 'Disease' | translate }}</th>
+                                    <th class="text-center">{{ 'Avg. Confidence' | translate }}</th>
+                                    <th class="text-center">{{ 'Status' | translate }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for stat in confidence_stats %}
+                                <tr>
+                                    <td>{{ stat.name_en }}</td>
+                                    <td class="text-center fw-medium">{{ "%.1f"|format(stat.avg_confidence * 100) }}%</td>
+                                    <td class="text-center">
+                                        {% if stat.avg_confidence >= 0.8 %}
+                                        <span class="badge bg-success">{{ 'High' | translate }}</span>
+                                        {% elif stat.avg_confidence >= 0.6 %}
+                                        <span class="badge bg-warning text-dark">{{ 'Medium' | translate }}</span>
+                                        {% else %}
+                                        <span class="badge bg-danger">{{ 'Low' | translate }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="3" class="text-center text-muted py-4">{{ 'No data available.' | translate }}</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    BARANGAY RISK LEVELS – CLEANER VERSION
+    ============================================================ -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-transparent border-bottom d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-exclamation-triangle me-2 text-warning"></i>
+                        {{ 'Barangay Risk Levels (Last 7 Days)' | translate }}
+                    </div>
+                    <span class="badge bg-secondary">{{ barangay_risk_summary|length }} {{ 'barangays' | translate }}</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>{{ 'Barangay' | translate }}</th>
+                                    <th class="text-center">{{ 'Reports' | translate }}</th>
+                                    <th class="text-center">{{ 'Farmers' | translate }}</th>
+                                    <th>{{ 'Risk Level' | translate }}</th>
+                                    <th>{{ 'Top Diseases' | translate }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in barangay_risk_summary %}
+                                {% set risk = get_risk_level_from_counts(item.total_reports, item.unique_farmers) %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ item.barangay }}</strong>
+                                        <span class="badge bg-secondary ms-1">{{ item.total_reports }}</span>
+                                    </td>
+                                    <td class="text-center">{{ item.total_reports }}</td>
+                                    <td class="text-center">{{ item.unique_farmers }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ risk.color }} px-3 py-1">
+                                            {{ risk.level }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {# Filter diseases: exclude Not Rice Leaf and Insect Damage, sort by count #}
+                                        {% set diseases = barangay_disease_breakdown
+                                        | selectattr('barangay', 'equalto', item.barangay)
+                                        | list
+                                        | rejectattr('disease', 'in', ['Not Rice Leaf', 'Insect Damage'])
+                                        | sort(attribute='report_count', reverse=True) %}
+
+                                        {% if diseases %}
+                                        <div class="d-flex flex-wrap gap-1">
+                                            {% for d in diseases[:3] %}
+                                            {% set d_risk = get_risk_level_from_counts(d.report_count, d.unique_farmers) %}
+                                            <span class="badge bg-{{ d_risk.color }} disease-badge">
+                                                {{ d.disease }}
+                                                <span class="badge-count">{{ d.report_count }}</span>
+                                            </span>
+                                            {% endfor %}
+                                            {% if diseases|length > 3 %}
+                                            <span class="badge bg-secondary more-badge">
+                                                +{{ diseases|length - 3 }} {{ 'more' | translate }}
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                        {% else %}
+                                        <span class="text-muted small">—</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        {{ 'No disease reports in the last 7 days.' | translate }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Disclaimer -->
+    <div class="text-muted small mt-4">
+        <i class="fas fa-info-circle me-1"></i>
+        {{ 'Data is based on scans recorded in the system.' | translate }}
+    </div>
+
+</div>
+
+<!-- ===== CHARTS JAVASCRIPT ===== -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const isMobile = window.innerWidth < 576;
+
+        // ---- 1. Disease Distribution (Pie) ----
+        const ctx1 = document.getElementById('diseaseChart').getContext('2d');
+        const chart1 = new Chart(ctx1, {
+            type: 'pie',
+            data: {
+                labels: {{ disease_labels | tojson }},
+                datasets: [{
+                    data: {{ disease_counts | tojson }},
+                    backgroundColor: ['#e74c3c', '#f39c12', '#2ecc71', '#8e44ad', '#3498db', '#e67e22', '#1abc9c', '#9b59b6', '#2c3e50'],
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            font: { size: isMobile ? 10 : 13 },
+                            boxWidth: isMobile ? 12 : 16,
+                            padding: isMobile ? 8 : 12
+                        }
+                    }
+                }
+            }
+        });
+
+        // ---- 2. Scans Over Time (Line) ----
+        const ctx2 = document.getElementById('trendChart').getContext('2d');
+        const chart2 = new Chart(ctx2, {
+            type: 'line',
+            data: {
+                labels: {{ trend_labels | tojson }},
+                datasets: [{
+                    label: '{{ "Scans" | translate }}',
+                    data: {{ trend_data | tojson }},
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: isMobile ? 2 : 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true, ticks: { font: { size: isMobile ? 10 : 13 } } },
+                    x: { ticks: { font: { size: isMobile ? 9 : 12 }, maxRotation: isMobile ? 45 : 0 } }
+                }
+            }
+        });
+
+        // ---- 3. Barangay Breakdown (Bar) ----
+        const ctx3 = document.getElementById('barangayChart').getContext('2d');
+        const chart3 = new Chart(ctx3, {
+            type: 'bar',
+            data: {
+                labels: {{ barangay_labels | tojson }},
+                datasets: [{
+                    label: '{{ "Scans" | translate }}',
+                    data: {{ barangay_counts | tojson }},
+                    backgroundColor: 'rgba(46, 204, 113, 0.7)',
+                    borderColor: 'rgba(46, 204, 113, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { font: { size: isMobile ? 10 : 13 } }
+                    },
+                    x: {
+                        ticks: {
+                            font: { size: isMobile ? 9 : 12 },
+                            maxRotation: isMobile ? 45 : 0,
+                            autoSkip: true,
+                            maxTicksLimit: isMobile ? 8 : 20
+                        }
+                    }
+                }
+            }
+        });
+
+        // ---- Handle resize ----
+        let resizeTimer;
+        window.addEventListener('resize', function() {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(function() {
+                chart1.resize();
+                chart2.resize();
+                chart3.resize();
+            }, 200);
+        });
+    });
+</script>
+
+<!-- ============================================================
+STYLES – includes disease badges and risk table
+============================================================ -->
+<style>
+    .page-title {
+        font-family: var(--font-heading, 'Inter', system-ui, sans-serif);
+        font-weight: 700;
+        font-size: 1.5rem;
+        letter-spacing: -0.02em;
+        color: var(--text, #0d1117);
+        margin: 0;
+    }
+
+    .stat-card {
+        position: relative;
+        border-radius: var(--radius-lg, 16px);
+        padding: var(--space-4, 1rem) var(--space-4, 1rem);
+        background: var(--card-bg, #ffffff);
+        border: 1px solid var(--border, #e9edf2);
+        box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.06));
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        align-items: center;
+        gap: var(--space-3, 0.75rem);
+        overflow: hidden;
+        min-height: 88px;
+    }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            border-radius: 0 3px 3px 0;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-md, 0 10px 25px -5px rgba(0,0,0,0.08));
+            border-color: transparent;
+        }
+
+        .stat-card .stat-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-md, 12px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+            background: rgba(30, 122, 58, 0.10);
+            color: var(--primary, #1e7a3a);
+            transition: transform 0.15s ease;
+        }
+
+        .stat-card:hover .stat-icon {
+            transform: scale(1.06);
+        }
+
+        .stat-card .stat-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .stat-card .stat-label {
+            font-size: 0.6rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--text-secondary, #57606a);
+            margin-bottom: 1px;
+        }
+
+        .stat-card .stat-number {
+            font-family: var(--font-heading, 'Inter', sans-serif);
+            font-size: 1.6rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            line-height: 1.2;
+            color: var(--text, #0d1117);
+        }
+
+    .stat-card-primary::before {
+        background: var(--primary, #1e7a3a);
+    }
+
+    .stat-card-primary .stat-icon {
+        background: rgba(30, 122, 58, 0.10);
+        color: var(--primary, #1e7a3a);
+    }
+
+    .stat-card-primary .stat-number {
+        color: var(--primary, #1e7a3a);
+    }
+
+    .stat-card-success::before {
+        background: var(--primary, #1e7a3a);
+    }
+
+    .stat-card-success .stat-icon {
+        background: rgba(30, 122, 58, 0.10);
+        color: var(--primary, #1e7a3a);
+    }
+
+    .stat-card-success .stat-number {
+        color: var(--primary, #1e7a3a);
+    }
+
+    .stat-card-accent::before {
+        background: #d97706;
+    }
+
+    .stat-card-accent .stat-icon {
+        background: rgba(217, 119, 6, 0.10);
+        color: #d97706;
+    }
+
+    .stat-card-accent .stat-number {
+        color: #d97706;
+    }
+
+    .card {
+        border-radius: var(--radius-lg, 16px);
+        border: 1px solid var(--border, #e9edf2);
+        background: var(--card-bg, #ffffff);
+        box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.06));
+        transition: box-shadow 0.25s ease;
+        overflow: hidden;
+    }
+
+        .card:hover {
+            box-shadow: var(--shadow-md, 0 10px 25px -5px rgba(0,0,0,0.08));
+        }
+
+    .card-header {
+        background: transparent;
+        border-bottom: 1px solid var(--border, #e9edf2);
+        padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+        font-weight: 600;
+        font-family: var(--font-heading, 'Inter', sans-serif);
+        color: var(--text, #0d1117);
+        font-size: 0.95rem;
+        flex-shrink: 0;
+    }
+
+        .card-header .text-primary {
+            color: var(--primary, #1e7a3a) !important;
+        }
+
+        .card-header .text-warning {
+            color: #d97706 !important;
+        }
+
+    .card-body {
+        padding: var(--space-4, 1rem) var(--space-4, 1rem);
+        position: relative;
+        overflow: hidden;
+    }
+
+        .card-body.p-0 {
+            padding: 0;
+            overflow: visible;
+        }
+
+    .chart-container {
+        position: relative;
+        width: 100%;
+        height: 280px;
+    }
+
+        .chart-container canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+            max-height: 100%;
+        }
+
+    .chart-container-wide {
+        height: 320px;
+    }
+
+    .card .table {
+        font-size: 0.85rem;
+        margin-bottom: 0;
+    }
+
+        .card .table thead th {
+            background: rgba(30, 122, 58, 0.04);
+            color: var(--text-secondary, #57606a);
+            font-weight: 600;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+            border-bottom: 1px solid var(--border, #e9edf2);
+            white-space: nowrap;
+        }
+
+        .card .table tbody td {
+            padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+            border-bottom: 1px solid var(--border-light, #f0f2f5);
+            vertical-align: middle;
+            color: var(--text, #0d1117);
+        }
+
+        .card .table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .card .table tbody tr:hover {
+            background: rgba(30, 122, 58, 0.04);
+        }
+
+    .user-initials {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--gradient-primary, linear-gradient(135deg, #1e7a3a, #2e7d32));
+        color: white;
+        font-weight: 700;
+        font-size: 0.8rem;
+        flex-shrink: 0;
+        font-family: var(--font-heading, 'Inter', sans-serif);
+    }
+
+    .badge {
+        font-weight: 600;
+        font-size: 0.7rem;
+        padding: var(--space-1, 0.25rem) var(--space-3, 0.75rem);
+        border-radius: 9999px;
+        text-transform: capitalize;
+    }
+
+        .badge.bg-success {
+            background: #28a745 !important;
+            color: #fff;
+        }
+
+        .badge.bg-info {
+            background: #0dcaf0 !important;
+            color: #0d1117;
+        }
+
+        .badge.bg-warning {
+            background: #ffc107 !important;
+            color: #0d1117;
+        }
+
+        .badge.bg-danger {
+            background: #dc3545 !important;
+            color: #fff;
+        }
+
+        .badge.bg-primary {
+            background: var(--gradient-primary, linear-gradient(135deg, #1e7a3a, #2e7d32)) !important;
+            color: #fff;
+        }
+
+        .badge.bg-secondary {
+            background: #6c757d !important;
+            color: #fff;
+        }
+
+    body.dark-mode .badge.bg-success {
+        background: #2ea043 !important;
+        color: #fff;
+    }
+
+    body.dark-mode .badge.bg-info {
+        background: #58a6ff !important;
+        color: #fff;
+    }
+
+    body.dark-mode .badge.bg-warning {
+        background: #d29922 !important;
+        color: #0d1117;
+    }
+
+    body.dark-mode .badge.bg-danger {
+        background: #f85149 !important;
+        color: #fff;
+    }
+
+    body.dark-mode .badge.bg-primary {
+        background: var(--gradient-primary, linear-gradient(135deg, #1e7a3a, #2e7d32)) !important;
+        color: #fff;
+    }
+
+    body.dark-mode .badge.bg-secondary {
+        background: #30363d !important;
+        color: #c9d1d9;
+    }
+
+    /* ---- Disease badges in risk table ---- */
+    .disease-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 0.25rem 0.6rem;
+        font-size: 0.7rem;
+        font-weight: 500;
+        border-radius: 9999px;
+        background: var(--primary-bg, #e8f5e9);
+        color: var(--text, #0d1117);
+        border: 1px solid rgba(0,0,0,0.04);
+    }
+
+        .disease-badge .badge-count {
+            background: rgba(0,0,0,0.08);
+            padding: 0 4px;
+            border-radius: 4px;
+            font-size: 0.6rem;
+            font-weight: 700;
+            min-width: 16px;
+            text-align: center;
+        }
+
+    .more-badge {
+        font-size: 0.65rem;
+        padding: 0.25rem 0.6rem;
+        background: rgba(0,0,0,0.05);
+        color: var(--text-secondary);
+        border: 1px dashed var(--border);
+        border-radius: 9999px;
+    }
+
+    body.dark-mode .disease-badge {
+        background: rgba(30, 122, 58, 0.15);
+        color: #e6edf3;
+        border-color: rgba(255,255,255,0.06);
+    }
+
+        body.dark-mode .disease-badge .badge-count {
+            background: rgba(255,255,255,0.08);
+            color: #e6edf3;
+        }
+
+    body.dark-mode .more-badge {
+        background: rgba(255,255,255,0.04);
+        color: #8b949e;
+        border-color: rgba(255,255,255,0.08);
+    }
+
+    /* Dark mode for stat cards */
+    body.dark-mode .stat-card {
+        background: var(--card-bg, #161b22);
+        border-color: var(--border, #30363d);
+    }
+
+        body.dark-mode .stat-card .stat-number {
+            color: #f0f6fc;
+        }
+
+        body.dark-mode .stat-card .stat-label {
+            color: #8b949e;
+        }
+
+    body.dark-mode .card {
+        border-color: var(--border, #30363d);
+        background: var(--card-bg, #161b22);
+    }
+
+    body.dark-mode .card-header {
+        border-bottom-color: var(--border, #30363d);
+        color: #f0f6fc;
+    }
+
+    body.dark-mode .card .table {
+        color: #f0f6fc;
+    }
+
+        body.dark-mode .card .table thead th {
+            background: rgba(30, 122, 58, 0.12);
+            color: #c9d1d9;
+            border-bottom-color: var(--border, #30363d);
+        }
+
+        body.dark-mode .card .table tbody td {
+            color: #f0f6fc;
+            border-bottom-color: var(--border, #30363d);
+            background: transparent;
+        }
+
+        body.dark-mode .card .table tbody tr:hover {
+            background: rgba(30, 122, 58, 0.15);
+        }
+
+        body.dark-mode .card .table .text-muted {
+            color: #8b949e !important;
+        }
+
+    body.dark-mode .user-initials {
+        background: var(--gradient-primary, linear-gradient(135deg, #1e7a3a, #2e7d32));
+        color: #fff;
+    }
+
+    /* Responsive */
+    @media (max-width: 575.98px) {
+        .page-title {
+            font-size: 1.25rem;
+        }
+
+        .stat-card {
+            min-height: 76px;
+            padding: var(--space-3, 0.75rem);
+        }
+
+            .stat-card .stat-icon {
+                width: 38px;
+                height: 38px;
+                font-size: 1rem;
+            }
+
+            .stat-card .stat-number {
+                font-size: 1.3rem;
+            }
+
+            .stat-card .stat-label {
+                font-size: 0.55rem;
+            }
+
+        .chart-container {
+            height: 220px;
+        }
+
+        .chart-container-wide {
+            height: 260px;
+        }
+
+        .card .table {
+            font-size: 0.75rem;
+        }
+
+            .card .table thead th,
+            .card .table tbody td {
+                padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+            }
+
+        .user-initials {
+            width: 28px;
+            height: 28px;
+            font-size: 0.7rem;
+        }
+
+        .card-header {
+            font-size: 0.9rem;
+            padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+        }
+
+        .card-body {
+            padding: var(--space-3, 0.75rem);
+        }
+
+        .disease-badge {
+            font-size: 0.6rem;
+            padding: 0.15rem 0.4rem;
+        }
+
+            .disease-badge .badge-count {
+                font-size: 0.5rem;
+                min-width: 12px;
+            }
+    }
+
+    @media (min-width: 576px) and (max-width: 767.98px) {
+        .chart-container {
+            height: 240px;
+        }
+
+        .chart-container-wide {
+            height: 280px;
+        }
+
+        .card-body {
+            padding: var(--space-4, 1rem);
+        }
+    }
+
+    @media (min-width: 768px) {
+        .page-title {
+            font-size: 1.75rem;
+        }
+
+        .stat-card .stat-number {
+            font-size: 2rem;
+        }
+
+        .stat-card .stat-icon {
+            width: 52px;
+            height: 52px;
+            font-size: 1.4rem;
+        }
+
+        .stat-card {
+            padding: var(--space-4, 1rem) var(--space-5, 1.5rem);
+        }
+
+        .chart-container {
+            height: 300px;
+        }
+
+        .chart-container-wide {
+            height: 350px;
+        }
+
+        .card-header {
+            padding: var(--space-3, 0.75rem) var(--space-5, 1.5rem);
+        }
+
+        .card-body {
+            padding: var(--space-5, 1.5rem);
+        }
+    }
+</style>
+{% endblock %}

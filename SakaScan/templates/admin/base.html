@@ -1,0 +1,276 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AGAP-PALAY AI - Rice Disease Detection</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <!-- ===== NAVBAR ===== -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="AGAP-PALAY Logo" width="30" height="30" class="d-inline-block align-top">
+                AGAP-PALAY
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+
+                    {% if session.user_id %}
+
+                    {# ------------------------------------------------- #}
+                    {#  Determine if we're on an admin page              #}
+                    {# ------------------------------------------------- #}
+                    {% set is_admin_page = request.endpoint and request.endpoint.startswith('admin_') %}
+
+                    {# ------------------------------------------------- #}
+                    {#  ADMIN NAV (visible only on admin pages)         #}
+                    {# ------------------------------------------------- #}
+                    {% if is_admin_page %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_dashboard' %}active{% endif %}"
+                           href="{{ url_for('admin_dashboard') }}">
+                            <i class="fas fa-tachometer-alt me-1"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_users' %}active{% endif %}"
+                           href="{{ url_for('admin_users') }}">
+                            <i class="fas fa-users me-1"></i> Users
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_diseases' %}active{% endif %}"
+                           href="{{ url_for('admin_diseases') }}">
+                            <i class="fas fa-leaf me-1"></i> Diseases
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_reports' %}active{% endif %}"
+                           href="{{ url_for('admin_reports') }}">
+                            <i class="fas fa-chart-bar me-1"></i> Reports
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin_map' %}active{% endif %}"
+                           href="{{ url_for('admin_map') }}">
+                            <i class="fas fa-map-marked-alt me-1"></i> Map
+                        </a>
+                    </li>
+
+                    {# ------------------------------------------------- #}
+                    {#  FARMER NAV (visible on non-admin pages)         #}
+                    {# ------------------------------------------------- #}
+                    {% else %}
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard') }}">{{ _('Dashboard') }}</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('scan') }}">{{ _('Scan') }}</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('history') }}">{{ _('History') }}</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('weather') }}">{{ _('Weather') }}</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('disease_list') }}">{{ _('Library') }}</a></li>
+                    {% endif %}
+
+                    {# ------------------------------------------------- #}
+                    {#  USER DROPDOWN (shared) – with role toggle       #}
+                    {# ------------------------------------------------- #}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user-circle"></i> {{ session.fullname }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li><a class="dropdown-item" href="{{ url_for('profile') }}"><i class="fas fa-id-card me-2"></i>{{ _('Profile') }}</a></li>
+
+                            {# ---- Role toggle for admin ---------------- #}
+                            {% if session.role == 'admin' %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                {% if is_admin_page %}
+                                {# Admin mode: show "Farmer Mode" #}
+                                <a class="dropdown-item" href="{{ url_for('dashboard') }}">
+                                    <i class="fas fa-tachometer-alt me-2"></i>{{ _('Farmer Mode') }}
+                                </a>
+                                {% else %}
+                                {# Farmer mode: show "Admin Mode" #}
+                                <a class="dropdown-item" href="{{ url_for('admin_dashboard') }}">
+                                    <i class="fas fa-user-shield me-2"></i>{{ _('Admin Mode') }}
+                                </a>
+                                {% endif %}
+                            </li>
+                            {% endif %}
+
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header">{{ _('Language') }}</h6></li>
+                            <li><a class="dropdown-item {% if session.get('language') == 'en' %}active{% endif %}" href="{{ url_for('set_language', lang='en') }}">🇬🇧 English</a></li>
+                            <li><a class="dropdown-item {% if session.get('language') == 'tl' %}active{% endif %}" href="{{ url_for('set_language', lang='tl') }}">🇵🇭 Tagalog</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header">{{ _('Appearance') }}</h6></li>
+                            <li>
+                                <form method="post" action="#" id="darkModeForm" class="dropdown-item p-0">
+                                    <button type="button" id="darkModeToggle" class="dropdown-item" style="background: none; border: none; width: 100%; text-align: left; padding: 0.25rem 1rem;">
+                                        <i class="fas fa-moon me-2"></i><span>{{ _('Dark Mode') }}</span>
+                                    </button>
+                                </form>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2"></i>{{ _('Logout') }}</a></li>
+                        </ul>
+                    </li>
+
+                    {% else %}
+                    <!-- ===== GUEST NAV ===== -->
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">{{ _('Login') }}</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('register') }}">{{ _('Register') }}</a></li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="languageDropdownGuest" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-language"></i> {{ _('Language') }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="languageDropdownGuest">
+                            <li><a class="dropdown-item {% if session.get('language') == 'en' %}active{% endif %}" href="{{ url_for('set_language', lang='en') }}">🇬🇧 English</a></li>
+                            <li><a class="dropdown-item {% if session.get('language') == 'tl' %}active{% endif %}" href="{{ url_for('set_language', lang='tl') }}">🇵🇭 Tagalog</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item">
+                        <button id="darkModeToggleGuest" class="btn btn-link nav-link">
+                            <i class="fas fa-moon"></i>
+                        </button>
+                    </li>
+                    {% endif %}
+
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ===== FLASH MESSAGES ===== -->
+    <div class="container mt-3">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category if category else 'info' }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- ===== MAIN CONTENT (full width) ===== -->
+    <main class="container my-4">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- ===== FOOTER ===== -->
+    <footer class="text-center py-3 mt-5">
+        <p></p>
+    </footer>
+
+    <!-- ===== SCRIPTS ===== -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        // Auto‑dismiss flash messages
+        setTimeout(function () {
+            let alerts = document.querySelectorAll('.alert');
+            alerts.forEach(function (alert) {
+                if (typeof bootstrap !== 'undefined') {
+                    let bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                } else {
+                    alert.style.transition = 'opacity 0.5s';
+                    alert.style.opacity = '0';
+                    setTimeout(() => alert.remove(), 500);
+                }
+            });
+        }, 5000);
+
+        // Dark mode
+        function initDarkMode(toggleId) {
+            const toggle = document.getElementById(toggleId);
+            if (!toggle) return;
+            const icon = toggle.querySelector('i');
+            const span = toggle.querySelector('span');
+            const body = document.body;
+
+            if (localStorage.getItem('darkMode') === 'enabled') {
+                body.classList.add('dark-mode');
+                if (icon) {
+                    icon.classList.remove('fa-moon');
+                    icon.classList.add('fa-sun');
+                }
+                if (span) span.textContent = '{{ _("Light Mode") }}';
+            }
+
+            toggle.addEventListener('click', () => {
+                if (body.classList.contains('dark-mode')) {
+                    body.classList.remove('dark-mode');
+                    localStorage.setItem('darkMode', 'disabled');
+                    if (icon) {
+                        icon.classList.remove('fa-sun');
+                        icon.classList.add('fa-moon');
+                    }
+                    if (span) span.textContent = '{{ _("Dark Mode") }}';
+                } else {
+                    body.classList.add('dark-mode');
+                    localStorage.setItem('darkMode', 'enabled');
+                    if (icon) {
+                        icon.classList.remove('fa-moon');
+                        icon.classList.add('fa-sun');
+                    }
+                    if (span) span.textContent = '{{ _("Light Mode") }}';
+                }
+            });
+        }
+
+        initDarkMode('darkModeToggle');
+        initDarkMode('darkModeToggleGuest');
+
+        // =========================================
+        // WEB PUSH NOTIFICATIONS FOR WEATHER ADVISORIES
+        // =========================================
+        (function() {
+            // Only run if browser supports notifications
+            if (!('Notification' in window)) return;
+
+            // Request permission on page load if not already decided
+            if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+                Notification.requestPermission();
+            }
+
+            // If permission is granted, check for recent advisories
+            if (Notification.permission === 'granted') {
+                // Wait a moment to let the page fully load
+                setTimeout(function() {
+                    // Only fetch if user is logged in (we can use session user_id from Jinja)
+                    {% if session.user_id %}
+                    fetch('/api/recent-advisories')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.advisories && data.advisories.length > 0) {
+                                const latest = data.advisories[0];
+                                // Show notification
+                                new Notification(latest.title, {
+                                    body: latest.message,
+                                    icon: '{{ url_for("static", filename="images/logo.png") }}'
+                                });
+                            }
+                        })
+                        .catch(err => console.log('Notification fetch error:', err));
+                    {% endif %}
+                }, 1500); // slight delay to avoid blocking UI
+            }
+        })();
+    </script>
+</body>
+</html>

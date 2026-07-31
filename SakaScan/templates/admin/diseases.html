@@ -1,0 +1,444 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-4">
+
+    <!-- Page Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <h1 class="page-title">
+            <i class="fas fa-leaf me-2 text-primary"></i>{{ 'Manage Diseases' | translate }}
+        </h1>
+        <a href="{{ url_for('admin_disease_add') }}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> {{ 'Add New' | translate }}
+        </a>
+    </div>
+
+    <!-- Filters – auto‑submit on change or Enter -->
+    <div class="row mb-4 g-3">
+        <div class="col-md-8">
+            <form method="GET" action="{{ url_for('admin_diseases') }}" class="row g-2" id="filterForm">
+                <div class="col-md-6">
+                    <input type="text" name="search" class="form-control" placeholder="{{ 'Search by name or description...' | translate }}" value="{{ request.args.get('search', '') }}" id="searchInput">
+                </div>
+                <div class="col-md-6">
+                    <select name="category" class="form-select" id="categorySelect">
+                        <option value="">{{ 'All Categories' | translate }}</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.id }}" {% if request.args.get('category')|int==cat.id %}selected{% endif %}>{{ cat.category_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+        </div>
+        <div class="col-md-4 text-md-end mt-2 mt-md-0">
+            <span class="text-muted">{{ diseases|length }} {{ 'diseases' | translate }}</span>
+        </div>
+    </div>
+
+    <!-- Disease Cards Grid -->
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        {% for disease in diseases %}
+        <div class="col">
+            <div class="card h-100 disease-card">
+                <!-- Image with gradient placeholder -->
+                <div class="card-img-top disease-image">
+                    {% if disease.primary_image %}
+                    <img src="{{ url_for('static', filename='uploads/' + disease.primary_image) }}"
+                         alt="{{ disease.name_en }}"
+                         loading="lazy"
+                         onerror="this.onerror=null; this.parentElement.innerHTML='<i class=\'fas fa-leaf fa-4x text-muted\'></i>';">
+                    {% else %}
+                    <i class="fas fa-leaf fa-4x text-muted"></i>
+                    {% endif %}
+                </div>
+
+                <div class="card-body">
+                    <h5 class="card-title" title="{{ disease.name_en }}">{{ disease.name_en }}</h5>
+                    <p class="card-text text-muted small disease-description">
+                        {{ disease.description_en or ('No description' | translate) }}
+                    </p>
+                    <div class="d-flex flex-wrap gap-1 mt-2">
+                        {% if disease.category_name %}
+                        <span class="badge bg-secondary">{{ disease.category_name }}</span>
+                        {% endif %}
+                        <span class="badge {% if disease.status == 'published' %}badge-success{% else %}badge-secondary{% endif %}">
+                            {{ disease.status|capitalize }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="card-footer bg-transparent border-top-0 d-flex justify-content-between gap-2">
+                    <a href="{{ url_for('admin_edit_disease', disease_id=disease.id) }}" class="btn btn-sm btn-outline-primary flex-fill">
+                        <i class="fas fa-edit me-1"></i> {{ 'Edit' | translate }}
+                    </a>
+                    <form method="post" action="{{ url_for('admin_disease_delete', disease_id=disease.id) }}" class="d-inline flex-fill" onsubmit="return confirm('{{ 'Are you sure you want to delete this disease?' | translate }}');">
+                        <button type="submit" class="btn btn-sm btn-outline-danger w-100">
+                            <i class="fas fa-trash me-1"></i> {{ 'Delete' | translate }}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle me-2"></i>{{ 'No diseases found.' | translate }}
+                <a href="{{ url_for('admin_disease_add') }}" class="alert-link">{{ 'Add one now' | translate }}</a>.
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ============================================================
+STYLES – with full dark mode support for cards
+============================================================ -->
+<style>
+    /* ── page title ── */
+    .page-title {
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        font-weight: 700;
+        font-size: 1.5rem;
+        letter-spacing: -0.02em;
+        color: #0d1117;
+        margin: 0;
+    }
+
+    body.dark-mode .page-title {
+        color: #f0f6fc;
+    }
+
+    /* ── search input & dropdown ── */
+    .form-control,
+    .form-select {
+        border-radius: 12px;
+        border: 1.5px solid #e9edf2;
+        background: #ffffff;
+        color: #0d1117;
+        min-height: 46px;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        font-size: 0.95rem;
+        width: 100%;
+    }
+
+        .form-control:hover,
+        .form-select:hover {
+            border-color: #1e7a3a;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: #1e7a3a;
+            box-shadow: 0 0 0 4px rgba(30,122,58,0.12);
+            outline: none;
+        }
+
+    body.dark-mode .form-control,
+    body.dark-mode .form-select {
+        background: #161b22;
+        color: #f0f6fc;
+        border-color: #30363d;
+    }
+
+        body.dark-mode .form-control:hover,
+        body.dark-mode .form-select:hover {
+            border-color: #4caf50;
+        }
+
+        body.dark-mode .form-control:focus,
+        body.dark-mode .form-select:focus {
+            border-color: #4caf50;
+            box-shadow: 0 0 0 4px rgba(76,175,80,0.2);
+            outline: none;
+        }
+
+    /* ── buttons ── */
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: all 0.15s ease;
+        border: none;
+        cursor: pointer;
+        text-decoration: none;
+        font-family: system-ui, sans-serif;
+        line-height: 1.5;
+        min-height: 46px;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #1e7a3a, #2e7d32);
+        color: white;
+        box-shadow: 0 2px 8px rgba(30,122,58,0.25);
+    }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(30,122,58,0.35);
+            color: white;
+        }
+
+    .btn-outline-primary {
+        color: #1e7a3a;
+        border: 1.5px solid #1e7a3a;
+        background: transparent;
+    }
+
+        .btn-outline-primary:hover {
+            background: linear-gradient(135deg, #1e7a3a, #2e7d32);
+            color: white;
+            border-color: transparent;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(30,122,58,0.25);
+        }
+
+    .btn-outline-danger {
+        color: #dc2626;
+        border: 1.5px solid #dc2626;
+        background: transparent;
+        transition: all 0.15s ease;
+    }
+
+        .btn-outline-danger:hover {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: white;
+            border-color: transparent;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(220,38,38,0.25);
+        }
+
+    body.dark-mode .btn-outline-danger {
+        color: #f85149;
+        border-color: #f85149;
+    }
+
+        body.dark-mode .btn-outline-danger:hover {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: white;
+            border-color: transparent;
+        }
+
+    /* ── disease cards ── */
+    .disease-card {
+        border-radius: 16px;
+        overflow: hidden;
+        background: #ffffff;
+        border: 1px solid #e9edf2;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+        .disease-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.15);
+            border-color: #1e7a3a;
+        }
+
+    .disease-image {
+        height: 180px;
+        background: rgba(30, 122, 58, 0.04);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+    }
+
+        .disease-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+    .disease-card:hover .disease-image img {
+        transform: scale(1.03);
+    }
+
+    .disease-image i {
+        opacity: 0.3;
+        color: #1e7a3a;
+    }
+
+    .disease-card .card-title {
+        font-family: 'Inter', sans-serif;
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #0d1117;
+        margin-bottom: 0.5rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .disease-description {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        color: #57606a;
+        min-height: 2.8rem;
+    }
+
+    .disease-card .card-footer {
+        padding: 0.75rem 1rem;
+        background: transparent;
+        border-top: 1px solid #f0f2f5;
+    }
+
+    .disease-card .btn {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
+        min-height: 34px;
+    }
+
+    /* ── DARK MODE card overrides ── */
+    body.dark-mode .disease-card {
+        background: #161b22;
+        border-color: #30363d;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+        body.dark-mode .disease-card:hover {
+            border-color: #4caf50;
+            box-shadow: 0 20px 40px -12px rgba(0,0,0,0.4);
+        }
+
+        body.dark-mode .disease-card .card-title {
+            color: #f0f6fc;
+        }
+
+    body.dark-mode .disease-description {
+        color: #8b949e;
+    }
+
+    body.dark-mode .disease-card .card-footer {
+        border-top-color: #30363d;
+    }
+
+    body.dark-mode .disease-image {
+        background: rgba(30, 122, 58, 0.08);
+    }
+
+        body.dark-mode .disease-image i {
+            color: #4caf50;
+            opacity: 0.4;
+        }
+
+    /* ── badges ── */
+    .badge {
+        font-weight: 600;
+        font-size: 0.7rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        text-transform: capitalize;
+    }
+
+    .badge-success {
+        background: #2ea043;
+        color: #fff;
+    }
+
+    .badge-secondary {
+        background: #e9edf2;
+        color: #0d1117;
+    }
+
+    body.dark-mode .badge-secondary {
+        background: #30363d;
+        color: #c9d1d9;
+    }
+
+    /* ── alert info ── */
+    .alert-info {
+        background: #d1ecf1;
+        border-color: #bee5eb;
+        color: #0c5460;
+        border-radius: 12px;
+        padding: 1rem;
+    }
+
+    body.dark-mode .alert-info {
+        background: #0a1628;
+        border-color: #1e3a8a;
+        color: #93c5fd;
+    }
+
+    /* ── text-muted override ── */
+    body.dark-mode .text-muted {
+        color: #8b949e !important;
+    }
+
+    /* ── responsive ── */
+    @media (max-width: 575.98px) {
+        .page-title {
+            font-size: 1.25rem;
+        }
+
+        .disease-image {
+            height: 140px;
+        }
+
+        .disease-card .card-title {
+            font-size: 1rem;
+        }
+
+        .btn {
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+            min-height: 40px;
+        }
+
+        .form-control,
+        .form-select {
+            min-height: 40px;
+            font-size: 0.9rem;
+        }
+
+        .disease-card .btn {
+            font-size: 0.7rem;
+            padding: 0.1rem 0.4rem;
+            min-height: 28px;
+        }
+    }
+
+    @media (min-width: 768px) {
+        .page-title {
+            font-size: 1.75rem;
+        }
+
+        .disease-image {
+            height: 200px;
+        }
+    }
+</style>
+
+<!-- ============================================================
+JAVASCRIPT – auto‑submit on dropdown change or Enter key
+============================================================ -->
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('filterForm');
+        const searchInput = document.getElementById('searchInput');
+        const categorySelect = document.getElementById('categorySelect');
+
+        categorySelect.addEventListener('change', function () {
+            form.submit();
+        });
+
+        searchInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                form.submit();
+            }
+        });
+    });
+</script>
+{% endblock %}
