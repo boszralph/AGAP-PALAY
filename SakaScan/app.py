@@ -126,10 +126,12 @@ BARANGAYS = [
 ]
 
 # ============================================================
-# CUSTOM MODEL LOADING (FULLY FIXED)
+# CUSTOM MODEL LOADING (GLOBAL PATCH)
 # ============================================================
 
-import ast  # ensure this is imported at top of file
+import ast
+import tensorflow as tf
+from tensorflow.keras.layers import Dense, InputLayer, Rescaling
 
 class CustomDense(Dense):
     def __init__(self, units, activation=None, use_bias=True,
@@ -158,10 +160,10 @@ class CustomDense(Dense):
 class CompatibleInputLayer(InputLayer):
     @classmethod
     def from_config(cls, config):
-        config = dict(config)
-        if 'batch_shape' in config:
-            config['batch_input_shape'] = config.pop('batch_shape')
-        for key in ['batch_input_shape', 'shape']:
+        config = dict(config)  # copy
+        # Convert all shape-like keys to tuples
+        shape_keys = ['batch_input_shape', 'batch_shape', 'input_shape', 'shape']
+        for key in shape_keys:
             if key in config:
                 shape = config[key]
                 if isinstance(shape, str):
@@ -177,12 +179,16 @@ class CompatibleInputLayer(InputLayer):
                         config[key] = [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
                 if isinstance(config[key], list):
                     config[key] = tuple(config[key])
+        # Remove unsupported keys
         for k in ['optional', 'sparse', 'ragged']:
             config.pop(k, None)
+        # Ensure batch_input_shape is set from batch_shape if present
+        if 'batch_shape' in config:
+            config['batch_input_shape'] = config.pop('batch_shape')
         return super().from_config(config)
 
 
-class CompatibleRescaling(tf.keras.layers.Rescaling):
+class CompatibleRescaling(Rescaling):
     @classmethod
     def from_config(cls, config):
         config['dtype'] = 'float32'
@@ -249,12 +255,22 @@ else:
 tf.keras.mixed_precision.set_global_policy('float32')
 
 if os.path.exists(MODEL_PATH) and os.path.getsize(MODEL_PATH) > 0:
+    # --- PATCH InputLayer GLOBALLY ---
+    original_InputLayer = tf.keras.layers.InputLayer
     try:
-        model = tf.keras.models.load_model(MODEL_PATH, custom_objects=custom_objects, compile=False)
+        tf.keras.layers.InputLayer = CompatibleInputLayer
+        model = tf.keras.models.load_model(
+            MODEL_PATH,
+            custom_objects=custom_objects,
+            compile=False
+        )
         print("✅ Custom model loaded successfully.")
     except Exception as e:
         print(f"❌ Error loading model: {e}")
         model = None
+    finally:
+        # Restore original InputLayer to avoid side effects
+        tf.keras.layers.InputLayer = original_InputLayer
 else:
     print("❌ Model file still missing after download attempts.")
     model = None
