@@ -126,7 +126,7 @@ BARANGAYS = [
 ]
 
 # ============================================================
-# CUSTOM MODEL LOADING (FIXED)
+# CUSTOM MODEL LOADING (FINAL FIXED)
 # ============================================================
 
 class CustomDense(Dense):
@@ -181,13 +181,15 @@ class CompatibleInputLayer(InputLayer):
 
 
 class DTypePolicy:
-    """Custom DTypePolicy to handle mixed precision settings from saved model."""
+    """Dummy DTypePolicy that provides required attributes for deserialization."""
     def __init__(self, name='float32'):
         self.name = name
+        self.compute_dtype = name
+        self.variable_dtype = name
 
     @classmethod
     def from_config(cls, config):
-        # config is like {'name': 'mixed_float16'} – we ignore and use float32
+        # Ignore saved dtype and use float32
         return cls(name='float32')
 
 
