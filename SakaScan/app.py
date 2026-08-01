@@ -138,7 +138,7 @@ from tensorflow.keras.layers import Dense, InputLayer
 # 1. Force float32 to avoid mixed‑precision warnings/errors
 mixed_precision.set_global_policy('float32')
 
-# 2. Custom Dense layer (unchanged, but kept for compatibility)
+# 2. Custom Dense layer (unchanged)
 class CustomDense(Dense):
     def __init__(self, units, activation=None, use_bias=True,
                  kernel_initializer='glorot_uniform',
@@ -172,10 +172,8 @@ class CompatibleInputLayer(InputLayer):
             shape = config['batch_input_shape']
             if isinstance(shape, str):
                 try:
-                    # ast.literal_eval handles "[None, 224, 224, 3]" correctly
                     shape = ast.literal_eval(shape)
                 except (ValueError, SyntaxError):
-                    # Fallback parsing
                     cleaned = shape.strip('[]()').replace('None', 'None').split(',')
                     shape = [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
                 if not isinstance(shape, (list, tuple)):
@@ -183,14 +181,16 @@ class CompatibleInputLayer(InputLayer):
                 config['batch_input_shape'] = shape
         return super().from_config(config)
 
+# 4. Register DTypePolicy – this fixes the Rescaling layer error
 custom_objects = {
     'InputLayer': CompatibleInputLayer,
     'Dense': CustomDense,
+    'DTypePolicy': tf.keras.mixed_precision.Policy,   # <-- ADD THIS
 }
 
-# 4. Download model (keep your existing download logic)
+# 5. Download model (reuse your existing logic)
 FILE_ID = "1B1X0YMYaKXSXIIahlA-tFSWjXut1qsql"
-MODEL_URL = f"https://drive.google.com/uc?id={FILE_ID}"   # FILE_ID defined earlier
+MODEL_URL = f"https://drive.google.com/uc?id={FILE_ID}"
 MODEL_PATH = 'model/rice_disease_models.h5'
 
 def download_model():
@@ -202,7 +202,7 @@ def download_model():
 
 download_model()
 
-# 5. Load with primary custom objects, with fallback
+# 6. Load with primary custom objects, with fallback
 model = None
 try:
     model = tf.keras.models.load_model(MODEL_PATH,
@@ -211,7 +211,7 @@ try:
     print("✅ Custom model loaded successfully.")
 except Exception as e:
     print(f"❌ First load attempt failed: {e}")
-    # Fallback: drop batch_input_shape entirely
+    # Fallback: drop batch_input_shape entirely, but keep DTypePolicy
     class FallbackInputLayer(InputLayer):
         @classmethod
         def from_config(cls, config):
@@ -225,6 +225,7 @@ except Exception as e:
     fallback_objects = {
         'InputLayer': FallbackInputLayer,
         'Dense': CustomDense,
+        'DTypePolicy': tf.keras.mixed_precision.Policy,   # also here
     }
     try:
         model = tf.keras.models.load_model(MODEL_PATH,
