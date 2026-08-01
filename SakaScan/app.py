@@ -10,6 +10,7 @@ import time
 import random
 import base64
 import pytz
+import zipfile
 from collections import defaultdict, Counter
 from functools import wraps
 from datetime import datetime, timezone, timedelta, date
@@ -18,8 +19,6 @@ pymysql.install_as_MySQLdb()
 import requests
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import mixed_precision
-from tensorflow.keras.layers import Dense, InputLayer
 from tensorflow.keras.applications.efficientnet_v2 import preprocess_input
 from PIL import Image
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -126,153 +125,50 @@ BARANGAYS = [
 ]
 
 # ============================================================
-# CUSTOM MODEL LOADING (GLOBAL PATCH)
+# MODEL LOADING (SavedModel)
 # ============================================================
-
-import ast
-import tensorflow as tf
-from tensorflow.keras.layers import Dense, InputLayer, Rescaling
-
-class CustomDense(Dense):
-    def __init__(self, units, activation=None, use_bias=True,
-                 kernel_initializer='glorot_uniform',
-                 bias_initializer='zeros',
-                 kernel_regularizer=None, bias_regularizer=None,
-                 activity_regularizer=None,
-                 kernel_constraint=None, bias_constraint=None,
-                 quantization_config=None, **kwargs):
-        super().__init__(units=units, activation=activation, use_bias=use_bias,
-                         kernel_initializer=kernel_initializer,
-                         bias_initializer=bias_initializer,
-                         kernel_regularizer=kernel_regularizer,
-                         bias_regularizer=bias_regularizer,
-                         activity_regularizer=activity_regularizer,
-                         kernel_constraint=kernel_constraint,
-                         bias_constraint=bias_constraint,
-                         **kwargs)
-
-    @classmethod
-    def from_config(cls, config):
-        config.pop('quantization_config', None)
-        return super().from_config(config)
-
-
-class CompatibleInputLayer(InputLayer):
-    @classmethod
-    def from_config(cls, config):
-        config = dict(config)  # copy
-        # Convert all shape-like keys to tuples
-        shape_keys = ['batch_input_shape', 'batch_shape', 'input_shape', 'shape']
-        for key in shape_keys:
-            if key in config:
-                shape = config[key]
-                if isinstance(shape, str):
-                    try:
-                        parsed = ast.literal_eval(shape)
-                        if isinstance(parsed, (tuple, list)):
-                            config[key] = parsed
-                        else:
-                            cleaned = shape.strip('[]()').split(',')
-                            config[key] = [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
-                    except:
-                        cleaned = shape.strip('[]()').split(',')
-                        config[key] = [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
-                if isinstance(config[key], list):
-                    config[key] = tuple(config[key])
-        # Remove unsupported keys
-        for k in ['optional', 'sparse', 'ragged']:
-            config.pop(k, None)
-        # Ensure batch_input_shape is set from batch_shape if present
-        if 'batch_shape' in config:
-            config['batch_input_shape'] = config.pop('batch_shape')
-        return super().from_config(config)
-
-
-class CompatibleRescaling(Rescaling):
-    @classmethod
-    def from_config(cls, config):
-        config['dtype'] = 'float32'
-        return super().from_config(config)
-
-
-class DTypePolicy:
-    def __init__(self, name='float32'):
-        self.name = name
-        self.compute_dtype = name
-        self.variable_dtype = name
-
-    @classmethod
-    def from_config(cls, config):
-        return cls(name='float32')
-
-
-custom_objects = {
-    'InputLayer': CompatibleInputLayer,
-    'Rescaling': CompatibleRescaling,
-    'Dense': CustomDense,
-    'DTypePolicy': DTypePolicy,
-}
-
-FILE_ID = "1B1X0YMYaKXSXIIahlA-tFSWjXut1qsql"
-MODEL_URL = f"https://drive.google.com/uc?id={FILE_ID}"
-MODEL_PATH = 'model/rice_disease_models.h5'
+# ----- IMPORTANT: Replace with your own Google Drive file ID -----
+# Upload saved_model.zip to Drive and get the file ID.
+FILE_ID = "https://drive.google.com/file/d/1N0U1VWUMhjVO-XnksvjxT_iE8nns8aK0/view?usp=drive_link"   # <-- change this
+ZIP_PATH = "model/saved_model.zip"
+MODEL_DIR = "model/saved_model"
 model = None
 
-
-def download_model():
+def download_and_extract():
+    """Download the SavedModel zip and extract it."""
     os.makedirs("model", exist_ok=True)
-    if os.path.exists(MODEL_PATH) and os.path.getsize(MODEL_PATH) > 0:
-        print("✅ Model file already exists.")
+    # If the folder already exists and contains files, assume it's ready.
+    if os.path.exists(MODEL_DIR) and os.listdir(MODEL_DIR):
+        print("✅ SavedModel already exists.")
         return True
 
-    print("📥 Downloading model... (this may take a few minutes)")
+    print("📥 Downloading SavedModel zip...")
+    url = f"https://drive.google.com/uc?id={FILE_ID}"
     try:
-        gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
-        if os.path.exists(MODEL_PATH) and os.path.getsize(MODEL_PATH) > 0:
-            print("✅ Model downloaded successfully.")
-            return True
-        else:
-            print("❌ Download completed but file is missing or empty.")
+        gdown.download(url, ZIP_PATH, quiet=False)
+        if not os.path.exists(ZIP_PATH) or os.path.getsize(ZIP_PATH) == 0:
+            print("❌ Download failed – file empty.")
             return False
+
+        with zipfile.ZipFile(ZIP_PATH, 'r') as zip_ref:
+            zip_ref.extractall("model/")
+        os.remove(ZIP_PATH)
+        print("✅ SavedModel extracted.")
+        return True
     except Exception as e:
-        print(f"❌ Download failed: {e}")
+        print(f"❌ Download/extract error: {e}")
         return False
 
-
-# Download with retry
-max_retries = 3
-for attempt in range(max_retries):
-    if download_model():
-        break
-    print(f"Retry {attempt+1}/{max_retries}...")
-    time.sleep(2)
-else:
-    print("❌ Could not download model after multiple attempts.")
-    model = None
-
-
-# Set global policy to float32 to avoid mixed precision issues
-tf.keras.mixed_precision.set_global_policy('float32')
-
-if os.path.exists(MODEL_PATH) and os.path.getsize(MODEL_PATH) > 0:
-    # --- PATCH InputLayer GLOBALLY ---
-    original_InputLayer = tf.keras.layers.InputLayer
+# Attempt to download and load
+if download_and_extract():
     try:
-        tf.keras.layers.InputLayer = CompatibleInputLayer
-        model = tf.keras.models.load_model(
-            MODEL_PATH,
-            custom_objects=custom_objects,
-            compile=False
-        )
-        print("✅ Custom model loaded successfully.")
+        model = tf.saved_model.load(MODEL_DIR)
+        print("✅ SavedModel loaded successfully.")
     except Exception as e:
-        print(f"❌ Error loading model: {e}")
+        print(f"❌ Error loading SavedModel: {e}")
         model = None
-    finally:
-        # Restore original InputLayer to avoid side effects
-        tf.keras.layers.InputLayer = original_InputLayer
 else:
-    print("❌ Model file still missing after download attempts.")
+    print("❌ Could not obtain SavedModel.")
     model = None
 
 IMG_SIZE = (224, 224)
@@ -364,7 +260,15 @@ def predict_disease(image_path):
         img_array = np.expand_dims(img_array, axis=0)
         img_array = preprocess_input(img_array)
 
-        predictions = model.predict(img_array, verbose=0)[0]
+        # --- SavedModel inference ---
+        result = model(img_array, training=False)
+        # The result is usually a dict or a tensor; we need the predictions array.
+        if isinstance(result, dict):
+            # Take the first output (adjust if your model has named outputs)
+            predictions = list(result.values())[0].numpy()[0]
+        else:
+            predictions = result.numpy()[0]
+
         sorted_indices = np.argsort(predictions)[::-1]
         top_idx = sorted_indices[0]
         top_name = class_names_raw[top_idx]
@@ -427,6 +331,7 @@ def get_full_name(user):
     suffix = (user.get('suffix') or '').strip()
     parts = [p for p in [first, middle, last, suffix] if p]
     return ' '.join(parts)
+
 # ---- Barangay risk functions ----
 def get_barangay_disease_risk(barangay):
     try:
@@ -643,7 +548,7 @@ def prewarm_translation_cache():
         print(f"⚠️ Could not pre‑warm translation cache: {e}")
 
 # ============================================================
-# ADVISORY GENERATION
+# ADVISORY GENERATION (FIXED DATETIME)
 # ============================================================
 def generate_weather_advisory(temp, humidity, rainfall, condition, user_id=None):
     try:
@@ -662,9 +567,14 @@ def generate_weather_advisory(temp, humidity, rainfall, condition, user_id=None)
             """)
         recent = cur.fetchone()
         cur.close()
+
         if recent:
-            time_diff = datetime.now(UTC_TZ) - recent['created_at']
-            if time_diff.total_seconds() < 21600:
+            db_dt = recent['created_at']
+            # Ensure both datetimes are timezone-aware
+            if db_dt.tzinfo is None:
+                db_dt = UTC_TZ.localize(db_dt)
+            time_diff = datetime.now(UTC_TZ) - db_dt
+            if time_diff.total_seconds() < 21600:  # 6 hours
                 return False
 
         messages = []
@@ -2255,7 +2165,7 @@ def admin_edit_user(user_id):
         if request.method == 'POST':
             barangay = request.form.get('barangay')
             language = request.form.get('language_preference', 'en')
-            is_verified = int(request.form.get('is_verified', 0))  # 0 or 1
+            is_verified = int(request.form.get('is_verified', 0))
 
             cur.execute("""
                 UPDATE users SET
@@ -2276,7 +2186,6 @@ def admin_edit_user(user_id):
             flash('User updated successfully.')
             return redirect(url_for('admin_users'))
 
-        # GET request – fetch user data (including is_verified)
         cur.execute("""
             SELECT id, first_name, middle_name, last_name, suffix, email, role,
                    language_preference, barangay, is_verified
@@ -2336,7 +2245,6 @@ def admin_map():
         cur.execute("SELECT id, name_en FROM diseases ORDER BY name_en")
         diseases = cur.fetchall()
 
-        
         barangays = sorted(BARANGAYS)
 
         query = """
@@ -2440,6 +2348,7 @@ def inject_user():
         full = f"{first} {last}".strip()
         return {'current_user_fullname': full or 'User'}
     return {'current_user_fullname': None}
+
 # ============================================================
 # API ENDPOINTS
 # ============================================================
@@ -2476,7 +2385,11 @@ def debug_model():
         return "Model not loaded"
     try:
         dummy = np.zeros((1, 224, 224, 3), dtype=np.float32)
-        preds = model.predict(dummy, verbose=0)
+        result = model(dummy, training=False)
+        if isinstance(result, dict):
+            preds = list(result.values())[0].numpy()
+        else:
+            preds = result.numpy()
         return f"Predictions shape: {preds.shape}, number of classes: {preds.shape[1]}"
     except Exception as e:
         return f"Model debug error: {e}"
