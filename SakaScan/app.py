@@ -150,6 +150,10 @@ class CompatibleInputLayer(InputLayer):
     def from_config(cls, config):
         if 'batch_shape' in config:
             config['batch_input_shape'] = config.pop('batch_shape')
+        # Remove newer keys that cause errors
+        config.pop('optional', None)
+        config.pop('sparse', None)
+        config.pop('ragged', None)
         return super().from_config(config)
 
 custom_objects = {
