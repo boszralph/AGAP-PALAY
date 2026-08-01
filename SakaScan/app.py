@@ -132,6 +132,10 @@ import ast
 import os
 import gdown
 import tensorflow as tf
+
+# CRITICAL: Force legacy Keras to avoid shape‑string errors
+os.environ['TF_USE_LEGACY_KERAS'] = '1'
+
 from tensorflow.keras import mixed_precision
 from tensorflow.keras.layers import Dense, InputLayer
 
@@ -144,13 +148,13 @@ original_TensorShape = tf.TensorShape
 class FixedTensorShape(original_TensorShape):
     def __init__(self, dims):
         if isinstance(dims, str):
-            # Try to parse as a Python literal (list/tuple)
-            try:
-                dims = ast.literal_eval(dims)
-            except (ValueError, SyntaxError):
-                # Fallback: split by commas, treat as int or None
-                parts = dims.strip('[]()').split(',')
-                dims = [int(x) if x.strip().isdigit() else None for x in parts if x.strip() != '']
+            # Remove brackets and split by commas
+            cleaned = dims.strip('[]()')
+            if cleaned == '':
+                dims = []
+            else:
+                parts = [x.strip() for x in cleaned.split(',') if x.strip() != '']
+                dims = [int(x) if x.isdigit() or (x[0] == '-' and x[1:].isdigit()) else None for x in parts]
         super().__init__(dims)
 
 tf.TensorShape = FixedTensorShape
@@ -174,7 +178,7 @@ class CustomDense(Dense):
                          bias_constraint=bias_constraint,
                          **kwargs)
 
-# 4. Custom InputLayer that also sanitises shapes
+# 4. Custom InputLayer that converts all shape strings to lists
 class CompatibleInputLayer(InputLayer):
     @classmethod
     def from_config(cls, config):
