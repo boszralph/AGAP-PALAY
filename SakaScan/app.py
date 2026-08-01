@@ -159,6 +159,7 @@ class CompatibleInputLayer(InputLayer):
 custom_objects = {
     'InputLayer': CompatibleInputLayer,
     'Dense': CustomDense,
+    'DTypePolicy': mixed_precision.Policy, 
 }
 FILE_ID = "1B1X0YMYaKXSXIIahlA-tFSWjXut1qsql"
 MODEL_URL = f"https://drive.google.com/uc?id={FILE_ID}"
