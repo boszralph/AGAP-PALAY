@@ -136,6 +136,7 @@ class CustomDense(Dense):
                  activity_regularizer=None,
                  kernel_constraint=None, bias_constraint=None,
                  quantization_config=None, **kwargs):
+        # Ignore quantization_config (it may be present in saved model)
         super().__init__(units=units, activation=activation, use_bias=use_bias,
                          kernel_initializer=kernel_initializer,
                          bias_initializer=bias_initializer,
@@ -146,6 +147,12 @@ class CustomDense(Dense):
                          bias_constraint=bias_constraint,
                          **kwargs)
 
+    @classmethod
+    def from_config(cls, config):
+        # Remove quantization_config to avoid errors
+        config.pop('quantization_config', None)
+        return super().from_config(config)
+
 class CompatibleInputLayer(InputLayer):
     @classmethod
     def from_config(cls, config):
@@ -153,20 +160,33 @@ class CompatibleInputLayer(InputLayer):
         if 'batch_shape' in config:
             config['batch_input_shape'] = config.pop('batch_shape')
         
-        # Convert 'batch_input_shape' from string to list/tuple if needed
-        if 'batch_input_shape' in config and isinstance(config['batch_input_shape'], str):
-            import ast
-            try:
-                config['batch_input_shape'] = ast.literal_eval(config['batch_input_shape'])
-            except:
-                # Fallback: split by commas and remove brackets
-                cleaned = config['batch_input_shape'].strip('[]()').split(',')
-                config['batch_input_shape'] = [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
+        # Ensure batch_input_shape is a tuple/list, not a string
+        if 'batch_input_shape' in config:
+            shape = config['batch_input_shape']
+            if isinstance(shape, str):
+                import ast
+                try:
+                    # Try to eval as a Python literal
+                    parsed = ast.literal_eval(shape)
+                    if isinstance(parsed, (tuple, list)):
+                        config['batch_input_shape'] = parsed
+                    else:
+                        # Fallback: parse manually
+                        cleaned = shape.strip('[]()').split(',')
+                        config['batch_input_shape'] = [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
+                except (ValueError, SyntaxError):
+                    # Fallback: remove brackets and split
+                    cleaned = shape.strip('[]()').split(',')
+                    config['batch_input_shape'] = [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
+            # Convert to tuple if it's a list (some layers expect tuple)
+            if isinstance(config['batch_input_shape'], list):
+                config['batch_input_shape'] = tuple(config['batch_input_shape'])
         
         # Remove newer keys that cause errors
         config.pop('optional', None)
         config.pop('sparse', None)
         config.pop('ragged', None)
+        
         return super().from_config(config)
 
 custom_objects = {
@@ -186,8 +206,15 @@ def download_model():
         gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
         print("✅ Model downloaded successfully.")
 
-# *** Call download_model() BEFORE trying to load ***
-download_model()
+    download_model()
+
+# Set global policy to float32 before loading
+tf.keras.mixed_precision.set_global_policy('float32')
+
+custom_objects = {
+    'InputLayer': CompatibleInputLayer,
+    'Dense': CustomDense,
+}
 
 try:
     model = tf.keras.models.load_model(MODEL_PATH, custom_objects=custom_objects, compile=False)
