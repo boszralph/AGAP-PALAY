@@ -135,10 +135,10 @@ import tensorflow as tf
 from tensorflow.keras import mixed_precision
 from tensorflow.keras.layers import Dense, InputLayer
 
-# 1. Force float32 to avoid mixed‑precision warnings/errors
+# Force float32
 mixed_precision.set_global_policy('float32')
 
-# 2. Custom Dense layer (unchanged)
+# Custom Dense (kept for compatibility)
 class CustomDense(Dense):
     def __init__(self, units, activation=None, use_bias=True,
                  kernel_initializer='glorot_uniform',
@@ -157,38 +157,48 @@ class CustomDense(Dense):
                          bias_constraint=bias_constraint,
                          **kwargs)
 
-# 3. Fixed InputLayer that handles string batch_input_shape
+# Custom InputLayer that converts all shape strings to lists/tuples
 class CompatibleInputLayer(InputLayer):
     @classmethod
     def from_config(cls, config):
-        # Remove all keys that cause 'as_list' errors
-        config.pop('batch_shape', None)
-        config.pop('optional', None)
-        config.pop('sparse', None)
-        config.pop('ragged', None)
+        # Remove known problematic keys
+        for key in ['batch_shape', 'optional', 'sparse', 'ragged']:
+            config.pop(key, None)
 
-        # Safely convert batch_input_shape from string to list/tuple
+        # Convert any string that looks like a shape into a list
+        def convert_shape_strings(obj):
+            if isinstance(obj, str):
+                # Check if it looks like a list/tuple of numbers and None
+                obj_stripped = obj.strip()
+                if obj_stripped.startswith('[') or obj_stripped.startswith('('):
+                    try:
+                        return ast.literal_eval(obj_stripped)
+                    except (ValueError, SyntaxError):
+                        # Fallback: split by commas, clean
+                        cleaned = obj_stripped.strip('[]()').replace('None', 'None').split(',')
+                        return [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
+            elif isinstance(obj, dict):
+                for k, v in obj.items():
+                    obj[k] = convert_shape_strings(v)
+            elif isinstance(obj, list):
+                return [convert_shape_strings(item) for item in obj]
+            return obj
+
+        config = convert_shape_strings(config)
+        # Ensure batch_input_shape is explicitly a list if present
         if 'batch_input_shape' in config:
-            shape = config['batch_input_shape']
-            if isinstance(shape, str):
-                try:
-                    shape = ast.literal_eval(shape)
-                except (ValueError, SyntaxError):
-                    cleaned = shape.strip('[]()').replace('None', 'None').split(',')
-                    shape = [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
-                if not isinstance(shape, (list, tuple)):
-                    shape = list(shape)
-                config['batch_input_shape'] = shape
+            if isinstance(config['batch_input_shape'], str):
+                config['batch_input_shape'] = ast.literal_eval(config['batch_input_shape'])
         return super().from_config(config)
 
-# 4. Register DTypePolicy – this fixes the Rescaling layer error
+# Register custom objects (including DTypePolicy)
 custom_objects = {
     'InputLayer': CompatibleInputLayer,
     'Dense': CustomDense,
-    'DTypePolicy': tf.keras.mixed_precision.Policy,   # <-- ADD THIS
+    'DTypePolicy': tf.keras.mixed_precision.Policy,
 }
 
-# 5. Download model (reuse your existing logic)
+# Download model (reuse your existing logic)
 FILE_ID = "1B1X0YMYaKXSXIIahlA-tFSWjXut1qsql"
 MODEL_URL = f"https://drive.google.com/uc?id={FILE_ID}"
 MODEL_PATH = 'model/rice_disease_models.h5'
@@ -202,7 +212,10 @@ def download_model():
 
 download_model()
 
-# 6. Load with primary custom objects, with fallback
+# --- GLOBAL OVERRIDE: replace InputLayer globally before loading ---
+original_InputLayer = tf.keras.layers.InputLayer
+tf.keras.layers.InputLayer = CompatibleInputLayer
+
 model = None
 try:
     model = tf.keras.models.load_model(MODEL_PATH,
@@ -211,12 +224,15 @@ try:
     print("✅ Custom model loaded successfully.")
 except Exception as e:
     print(f"❌ First load attempt failed: {e}")
-    # Fallback: drop batch_input_shape entirely, but keep DTypePolicy
+    # Restore original and try fallback
+    tf.keras.layers.InputLayer = original_InputLayer
+    # Fallback: use a more permissive InputLayer that drops all shape keys
     class FallbackInputLayer(InputLayer):
         @classmethod
         def from_config(cls, config):
             config.pop('batch_input_shape', None)
             config.pop('batch_shape', None)
+            config.pop('input_shape', None)
             config.pop('optional', None)
             config.pop('sparse', None)
             config.pop('ragged', None)
@@ -225,16 +241,24 @@ except Exception as e:
     fallback_objects = {
         'InputLayer': FallbackInputLayer,
         'Dense': CustomDense,
-        'DTypePolicy': tf.keras.mixed_precision.Policy,   # also here
+        'DTypePolicy': tf.keras.mixed_precision.Policy,
     }
+    # Override again with fallback
+    tf.keras.layers.InputLayer = FallbackInputLayer
     try:
         model = tf.keras.models.load_model(MODEL_PATH,
                                            custom_objects=fallback_objects,
                                            compile=False)
-        print("✅ Model loaded with fallback (batch_input_shape removed).")
+        print("✅ Model loaded with fallback (shape keys removed).")
     except Exception as e2:
         print(f"❌ Fallback loading also failed: {e2}")
         model = None
+    finally:
+        # Restore original InputLayer
+        tf.keras.layers.InputLayer = original_InputLayer
+else:
+    # Restore original InputLayer after successful load
+    tf.keras.layers.InputLayer = original_InputLayer
 
 IMG_SIZE = (224, 224)
 
