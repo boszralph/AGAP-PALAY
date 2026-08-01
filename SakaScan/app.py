@@ -135,10 +135,27 @@ import tensorflow as tf
 from tensorflow.keras import mixed_precision
 from tensorflow.keras.layers import Dense, InputLayer
 
-# Force float32
+# 1. Force float32 to avoid mixed‑precision warnings/errors
 mixed_precision.set_global_policy('float32')
 
-# Custom Dense (kept for compatibility)
+# 2. Monkey‑patch TensorShape to accept strings
+original_TensorShape = tf.TensorShape
+
+class FixedTensorShape(original_TensorShape):
+    def __init__(self, dims):
+        if isinstance(dims, str):
+            # Try to parse as a Python literal (list/tuple)
+            try:
+                dims = ast.literal_eval(dims)
+            except (ValueError, SyntaxError):
+                # Fallback: split by commas, treat as int or None
+                parts = dims.strip('[]()').split(',')
+                dims = [int(x) if x.strip().isdigit() else None for x in parts if x.strip() != '']
+        super().__init__(dims)
+
+tf.TensorShape = FixedTensorShape
+
+# 3. Custom Dense layer (unchanged)
 class CustomDense(Dense):
     def __init__(self, units, activation=None, use_bias=True,
                  kernel_initializer='glorot_uniform',
@@ -157,48 +174,38 @@ class CustomDense(Dense):
                          bias_constraint=bias_constraint,
                          **kwargs)
 
-# Custom InputLayer that converts all shape strings to lists/tuples
+# 4. Custom InputLayer that also sanitises shapes
 class CompatibleInputLayer(InputLayer):
     @classmethod
     def from_config(cls, config):
+        # Recursively convert any string that looks like a shape to a list
+        def convert(obj):
+            if isinstance(obj, str):
+                if obj.strip().startswith(('[', '(')):
+                    try:
+                        return ast.literal_eval(obj)
+                    except (ValueError, SyntaxError):
+                        pass
+            elif isinstance(obj, dict):
+                return {k: convert(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert(item) for item in obj]
+            return obj
+
+        config = convert(config)
         # Remove known problematic keys
         for key in ['batch_shape', 'optional', 'sparse', 'ragged']:
             config.pop(key, None)
-
-        # Convert any string that looks like a shape into a list
-        def convert_shape_strings(obj):
-            if isinstance(obj, str):
-                # Check if it looks like a list/tuple of numbers and None
-                obj_stripped = obj.strip()
-                if obj_stripped.startswith('[') or obj_stripped.startswith('('):
-                    try:
-                        return ast.literal_eval(obj_stripped)
-                    except (ValueError, SyntaxError):
-                        # Fallback: split by commas, clean
-                        cleaned = obj_stripped.strip('[]()').replace('None', 'None').split(',')
-                        return [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
-            elif isinstance(obj, dict):
-                for k, v in obj.items():
-                    obj[k] = convert_shape_strings(v)
-            elif isinstance(obj, list):
-                return [convert_shape_strings(item) for item in obj]
-            return obj
-
-        config = convert_shape_strings(config)
-        # Ensure batch_input_shape is explicitly a list if present
-        if 'batch_input_shape' in config:
-            if isinstance(config['batch_input_shape'], str):
-                config['batch_input_shape'] = ast.literal_eval(config['batch_input_shape'])
         return super().from_config(config)
 
-# Register custom objects (including DTypePolicy)
+# 5. Register all custom objects – including DTypePolicy
 custom_objects = {
     'InputLayer': CompatibleInputLayer,
     'Dense': CustomDense,
     'DTypePolicy': tf.keras.mixed_precision.Policy,
 }
 
-# Download model (reuse your existing logic)
+# 6. Download model (reuse your existing logic)
 FILE_ID = "1B1X0YMYaKXSXIIahlA-tFSWjXut1qsql"
 MODEL_URL = f"https://drive.google.com/uc?id={FILE_ID}"
 MODEL_PATH = 'model/rice_disease_models.h5'
@@ -212,7 +219,7 @@ def download_model():
 
 download_model()
 
-# --- GLOBAL OVERRIDE: replace InputLayer globally before loading ---
+# 7. Override InputLayer globally during loading
 original_InputLayer = tf.keras.layers.InputLayer
 tf.keras.layers.InputLayer = CompatibleInputLayer
 
@@ -224,18 +231,15 @@ try:
     print("✅ Custom model loaded successfully.")
 except Exception as e:
     print(f"❌ First load attempt failed: {e}")
-    # Restore original and try fallback
+    # Restore and try fallback with more aggressive key removal
     tf.keras.layers.InputLayer = original_InputLayer
-    # Fallback: use a more permissive InputLayer that drops all shape keys
+
     class FallbackInputLayer(InputLayer):
         @classmethod
         def from_config(cls, config):
-            config.pop('batch_input_shape', None)
-            config.pop('batch_shape', None)
-            config.pop('input_shape', None)
-            config.pop('optional', None)
-            config.pop('sparse', None)
-            config.pop('ragged', None)
+            # Remove ALL shape‑related keys
+            for key in ['batch_input_shape', 'batch_shape', 'input_shape', 'optional', 'sparse', 'ragged']:
+                config.pop(key, None)
             return super().from_config(config)
 
     fallback_objects = {
@@ -243,7 +247,6 @@ except Exception as e:
         'Dense': CustomDense,
         'DTypePolicy': tf.keras.mixed_precision.Policy,
     }
-    # Override again with fallback
     tf.keras.layers.InputLayer = FallbackInputLayer
     try:
         model = tf.keras.models.load_model(MODEL_PATH,
@@ -254,11 +257,13 @@ except Exception as e:
         print(f"❌ Fallback loading also failed: {e2}")
         model = None
     finally:
-        # Restore original InputLayer
         tf.keras.layers.InputLayer = original_InputLayer
 else:
     # Restore original InputLayer after successful load
     tf.keras.layers.InputLayer = original_InputLayer
+
+# 8. Restore original TensorShape (optional, keeps environment clean)
+tf.TensorShape = original_TensorShape
 
 IMG_SIZE = (224, 224)
 
