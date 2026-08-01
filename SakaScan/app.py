@@ -167,12 +167,16 @@ def download_model():
         os.makedirs("model", exist_ok=True)
         gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
         print("✅ Model downloaded successfully.")
-        download_model()
+
+# *** Call download_model() BEFORE trying to load ***
+download_model()
+
 try:
     model = tf.keras.models.load_model(MODEL_PATH, custom_objects=custom_objects, compile=False)
     print("✅ Custom model loaded successfully.")
 except Exception as e:
     print(f"❌ Error loading model: {e}")
+    model = None
 
 IMG_SIZE = (224, 224)
 
