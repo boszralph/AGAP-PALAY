@@ -10,7 +10,6 @@ import time
 import random
 import base64
 import pytz
-import zipfile
 from collections import defaultdict, Counter
 from functools import wraps
 from datetime import datetime, timezone, timedelta, date
@@ -19,6 +18,8 @@ pymysql.install_as_MySQLdb()
 import requests
 import numpy as np
 import tensorflow as tf
+from tensorflow.keras import mixed_precision
+from tensorflow.keras.layers import Dense, InputLayer
 from tensorflow.keras.applications.efficientnet_v2 import preprocess_input
 from PIL import Image
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -124,92 +125,76 @@ BARANGAYS = [
     'Telbang', 'Victoria'
 ]
 
-import os
-import zipfile
-import requests
-import re
-import time
+# ============================================================
+# CUSTOM MODEL LOADING
+# ============================================================
+class CustomDense(Dense):
+    def __init__(self, units, activation=None, use_bias=True,
+                 kernel_initializer='glorot_uniform',
+                 bias_initializer='zeros',
+                 kernel_regularizer=None, bias_regularizer=None,
+                 activity_regularizer=None,
+                 kernel_constraint=None, bias_constraint=None,
+                 quantization_config=None, **kwargs):
+        super().__init__(units=units, activation=activation, use_bias=use_bias,
+                         kernel_initializer=kernel_initializer,
+                         bias_initializer=bias_initializer,
+                         kernel_regularizer=kernel_regularizer,
+                         bias_regularizer=bias_regularizer,
+                         activity_regularizer=activity_regularizer,
+                         kernel_constraint=kernel_constraint,
+                         bias_constraint=bias_constraint,
+                         **kwargs)
 
-def download_and_extract():
-    os.makedirs("model", exist_ok=True)
-    if os.path.exists(MODEL_DIR) and os.listdir(MODEL_DIR):
-        print("✅ SavedModel already exists.")
-        return True
+class CompatibleInputLayer(InputLayer):
+    @classmethod
+    def from_config(cls, config):
+        # Handle old 'batch_shape' key
+        if 'batch_shape' in config:
+            config['batch_input_shape'] = config.pop('batch_shape')
+        
+        # Convert 'batch_input_shape' from string to list/tuple if needed
+        if 'batch_input_shape' in config and isinstance(config['batch_input_shape'], str):
+            import ast
+            try:
+                config['batch_input_shape'] = ast.literal_eval(config['batch_input_shape'])
+            except:
+                # Fallback: split by commas and remove brackets
+                cleaned = config['batch_input_shape'].strip('[]()').split(',')
+                config['batch_input_shape'] = [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
+        
+        # Remove newer keys that cause errors
+        config.pop('optional', None)
+        config.pop('sparse', None)
+        config.pop('ragged', None)
+        return super().from_config(config)
 
-    print("📥 Downloading SavedModel zip...")
-    url = f"https://drive.google.com/uc?id={FILE_ID}&export=download"
-    session = requests.Session()
-    
-    try:
-        # First request to get the confirmation token if needed
-        resp = session.get(url, stream=True)
-        if 'confirm' in resp.url:
-            # Extract confirm token
-            confirm_token = re.search(r'confirm=([^&]+)', resp.url)
-            if confirm_token:
-                confirm = confirm_token.group(1)
-                url = f"https://drive.google.com/uc?id={FILE_ID}&export=download&confirm={confirm}"
-                resp = session.get(url, stream=True)
-        
-        # If still a virus scan warning, try the direct download with a cookie
-        if 'Virus scan warning' in resp.text or 'Quarantine' in resp.text:
-            # Use the download button URL
-            download_url = None
-            for line in resp.text.split('\n'):
-                if 'download' in line and 'uc?id' in line:
-                    match = re.search(r'href="([^"]+)"', line)
-                    if match:
-                        download_url = match.group(1)
-                        break
-            if download_url:
-                resp = session.get(download_url, stream=True)
-            else:
-                # Fallback: try with `&confirm=t`
-                url = f"https://drive.google.com/uc?id={FILE_ID}&export=download&confirm=t"
-                resp = session.get(url, stream=True)
-        
-        # Check if we got binary data (Content-Type should not be text/html)
-        content_type = resp.headers.get('Content-Type', '')
-        if 'text/html' in content_type:
-            print("❌ Got HTML page instead of binary – file may not be accessible.")
-            return False
-        
-        # Write the file with progress
-        total_size = int(resp.headers.get('content-length', 0))
-        if total_size == 0:
-            print("❌ Content-Length is zero – file unavailable.")
-            return False
-        
-        with open(ZIP_PATH, 'wb') as f:
-            downloaded = 0
-            for chunk in resp.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    if total_size:
-                        percent = (downloaded / total_size) * 100
-                        print(f"\rProgress: {percent:.1f}%", end='')
-        print("\n✅ Download completed via requests.")
-    
-    except Exception as e:
-        print(f"❌ Download error: {e}")
-        return False
+custom_objects = {
+    'InputLayer': CompatibleInputLayer,
+    'Dense': CustomDense,
+    'DTypePolicy': tf.keras.mixed_precision.Policy, 
+}
+FILE_ID = "1B1X0YMYaKXSXIIahlA-tFSWjXut1qsql"
+MODEL_URL = f"https://drive.google.com/uc?id={FILE_ID}"
+MODEL_PATH = 'model/rice_disease_models.h5'
+model = None
 
-    # Final size check (should be ~200+ MB)
-    if not os.path.exists(ZIP_PATH) or os.path.getsize(ZIP_PATH) < 100 * 1024 * 1024:
-        print("❌ Downloaded file is too small – likely an error page.")
-        return False
+def download_model():
+    if not os.path.exists(MODEL_PATH):
+        print("📥 Downloading model... (this may take a few minutes)")
+        os.makedirs("model", exist_ok=True)
+        gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
+        print("✅ Model downloaded successfully.")
 
-    # Extract
-    try:
-        with zipfile.ZipFile(ZIP_PATH, 'r') as zip_ref:
-            zip_ref.extractall("model/")
-        os.remove(ZIP_PATH)
-        print("✅ SavedModel extracted.")
-        return True
-    except zipfile.BadZipFile:
-        print("❌ Downloaded file is not a valid zip.")
-        return False
+# *** Call download_model() BEFORE trying to load ***
+download_model()
+
+try:
+    model = tf.keras.models.load_model(MODEL_PATH, custom_objects=custom_objects, compile=False)
+    print("✅ Custom model loaded successfully.")
+except Exception as e:
+    print(f"❌ Error loading model: {e}")
+    model = None
 
 IMG_SIZE = (224, 224)
 
@@ -300,15 +285,7 @@ def predict_disease(image_path):
         img_array = np.expand_dims(img_array, axis=0)
         img_array = preprocess_input(img_array)
 
-        # --- SavedModel inference ---
-        result = model(img_array, training=False)
-        # The result is usually a dict or a tensor; we need the predictions array.
-        if isinstance(result, dict):
-            # Take the first output (adjust if your model has named outputs)
-            predictions = list(result.values())[0].numpy()[0]
-        else:
-            predictions = result.numpy()[0]
-
+        predictions = model.predict(img_array, verbose=0)[0]
         sorted_indices = np.argsort(predictions)[::-1]
         top_idx = sorted_indices[0]
         top_name = class_names_raw[top_idx]
@@ -371,7 +348,6 @@ def get_full_name(user):
     suffix = (user.get('suffix') or '').strip()
     parts = [p for p in [first, middle, last, suffix] if p]
     return ' '.join(parts)
-
 # ---- Barangay risk functions ----
 def get_barangay_disease_risk(barangay):
     try:
@@ -588,7 +564,7 @@ def prewarm_translation_cache():
         print(f"⚠️ Could not pre‑warm translation cache: {e}")
 
 # ============================================================
-# ADVISORY GENERATION (FIXED DATETIME)
+# ADVISORY GENERATION
 # ============================================================
 def generate_weather_advisory(temp, humidity, rainfall, condition, user_id=None):
     try:
@@ -607,14 +583,9 @@ def generate_weather_advisory(temp, humidity, rainfall, condition, user_id=None)
             """)
         recent = cur.fetchone()
         cur.close()
-
         if recent:
-            db_dt = recent['created_at']
-            # Ensure both datetimes are timezone-aware
-            if db_dt.tzinfo is None:
-                db_dt = UTC_TZ.localize(db_dt)
-            time_diff = datetime.now(UTC_TZ) - db_dt
-            if time_diff.total_seconds() < 21600:  # 6 hours
+            time_diff = datetime.now(UTC_TZ) - recent['created_at']
+            if time_diff.total_seconds() < 21600:
                 return False
 
         messages = []
@@ -2205,7 +2176,7 @@ def admin_edit_user(user_id):
         if request.method == 'POST':
             barangay = request.form.get('barangay')
             language = request.form.get('language_preference', 'en')
-            is_verified = int(request.form.get('is_verified', 0))
+            is_verified = int(request.form.get('is_verified', 0))  # 0 or 1
 
             cur.execute("""
                 UPDATE users SET
@@ -2226,6 +2197,7 @@ def admin_edit_user(user_id):
             flash('User updated successfully.')
             return redirect(url_for('admin_users'))
 
+        # GET request – fetch user data (including is_verified)
         cur.execute("""
             SELECT id, first_name, middle_name, last_name, suffix, email, role,
                    language_preference, barangay, is_verified
@@ -2285,6 +2257,7 @@ def admin_map():
         cur.execute("SELECT id, name_en FROM diseases ORDER BY name_en")
         diseases = cur.fetchall()
 
+        
         barangays = sorted(BARANGAYS)
 
         query = """
@@ -2388,7 +2361,6 @@ def inject_user():
         full = f"{first} {last}".strip()
         return {'current_user_fullname': full or 'User'}
     return {'current_user_fullname': None}
-
 # ============================================================
 # API ENDPOINTS
 # ============================================================
@@ -2425,11 +2397,7 @@ def debug_model():
         return "Model not loaded"
     try:
         dummy = np.zeros((1, 224, 224, 3), dtype=np.float32)
-        result = model(dummy, training=False)
-        if isinstance(result, dict):
-            preds = list(result.values())[0].numpy()
-        else:
-            preds = result.numpy()
+        preds = model.predict(dummy, verbose=0)
         return f"Predictions shape: {preds.shape}, number of classes: {preds.shape[1]}"
     except Exception as e:
         return f"Model debug error: {e}"
