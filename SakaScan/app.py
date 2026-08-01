@@ -181,14 +181,14 @@ class CompatibleInputLayer(InputLayer):
 
 
 class DTypePolicy:
-    """Dummy class to deserialize dtype policies used in the saved model."""
+    """Custom DTypePolicy to handle mixed precision settings from saved model."""
     def __init__(self, name='float32'):
         self.name = name
 
     @classmethod
     def from_config(cls, config):
-        # config is like {'name': 'mixed_float16'} – we ignore it and return 'float32'
-        return 'float32'  # return a string, which is acceptable for dtype
+        # config is like {'name': 'mixed_float16'} – we ignore and use float32
+        return cls(name='float32')
 
 
 custom_objects = {
