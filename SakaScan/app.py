@@ -126,8 +126,9 @@ BARANGAYS = [
 ]
 
 # ============================================================
-# CUSTOM MODEL LOADING
+# CUSTOM MODEL LOADING (FIXED)
 # ============================================================
+
 class CustomDense(Dense):
     def __init__(self, units, activation=None, use_bias=True,
                  kernel_initializer='glorot_uniform',
@@ -136,7 +137,6 @@ class CustomDense(Dense):
                  activity_regularizer=None,
                  kernel_constraint=None, bias_constraint=None,
                  quantization_config=None, **kwargs):
-        # Ignore quantization_config (it may be present in saved model)
         super().__init__(units=units, activation=activation, use_bias=use_bias,
                          kernel_initializer=kernel_initializer,
                          bias_initializer=bias_initializer,
@@ -149,78 +149,100 @@ class CustomDense(Dense):
 
     @classmethod
     def from_config(cls, config):
-        # Remove quantization_config to avoid errors
         config.pop('quantization_config', None)
         return super().from_config(config)
+
 
 class CompatibleInputLayer(InputLayer):
     @classmethod
     def from_config(cls, config):
-        # Handle old 'batch_shape' key
         if 'batch_shape' in config:
             config['batch_input_shape'] = config.pop('batch_shape')
-        
-        # Ensure batch_input_shape is a tuple/list, not a string
         if 'batch_input_shape' in config:
             shape = config['batch_input_shape']
             if isinstance(shape, str):
                 import ast
                 try:
-                    # Try to eval as a Python literal
                     parsed = ast.literal_eval(shape)
                     if isinstance(parsed, (tuple, list)):
                         config['batch_input_shape'] = parsed
                     else:
-                        # Fallback: parse manually
                         cleaned = shape.strip('[]()').split(',')
                         config['batch_input_shape'] = [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
-                except (ValueError, SyntaxError):
-                    # Fallback: remove brackets and split
+                except:
                     cleaned = shape.strip('[]()').split(',')
                     config['batch_input_shape'] = [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
-            # Convert to tuple if it's a list (some layers expect tuple)
             if isinstance(config['batch_input_shape'], list):
                 config['batch_input_shape'] = tuple(config['batch_input_shape'])
-        
-        # Remove newer keys that cause errors
         config.pop('optional', None)
         config.pop('sparse', None)
         config.pop('ragged', None)
-        
         return super().from_config(config)
+
 
 custom_objects = {
     'InputLayer': CompatibleInputLayer,
     'Dense': CustomDense,
-    'DTypePolicy': tf.keras.mixed_precision.Policy, 
 }
+
 FILE_ID = "1B1X0YMYaKXSXIIahlA-tFSWjXut1qsql"
 MODEL_URL = f"https://drive.google.com/uc?id={FILE_ID}"
 MODEL_PATH = 'model/rice_disease_models.h5'
 model = None
 
+
 def download_model():
-    if not os.path.exists(MODEL_PATH):
-        print("📥 Downloading model... (this may take a few minutes)")
-        os.makedirs("model", exist_ok=True)
+    """Download the model file if missing or empty, with retry."""
+    os.makedirs("model", exist_ok=True)
+    if os.path.exists(MODEL_PATH) and os.path.getsize(MODEL_PATH) > 0:
+        print("✅ Model file already exists.")
+        return True
+
+    print("📥 Downloading model... (this may take a few minutes)")
+    try:
+        # Use gdown with quiet=False for progress
         gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
-        print("✅ Model downloaded successfully.")
+        if os.path.exists(MODEL_PATH) and os.path.getsize(MODEL_PATH) > 0:
+            print("✅ Model downloaded successfully.")
+            return True
+        else:
+            print("❌ Download completed but file is missing or empty.")
+            return False
+    except Exception as e:
+        print(f"❌ Download failed: {e}")
+        return False
 
-    download_model()
 
-# Set global policy to float32 before loading
+# Download with retry
+max_retries = 3
+for attempt in range(max_retries):
+    if download_model():
+        break
+    print(f"Retry {attempt+1}/{max_retries}...")
+    time.sleep(2)
+else:
+    print("❌ Could not download model after multiple attempts.")
+    model = None
+
+
+# Set global policy to float32 to avoid mixed precision issues
 tf.keras.mixed_precision.set_global_policy('float32')
 
-custom_objects = {
-    'InputLayer': CompatibleInputLayer,
-    'Dense': CustomDense,
-}
-
-try:
-    model = tf.keras.models.load_model(MODEL_PATH, custom_objects=custom_objects, compile=False)
-    print("✅ Custom model loaded successfully.")
-except Exception as e:
-    print(f"❌ Error loading model: {e}")
+if os.path.exists(MODEL_PATH) and os.path.getsize(MODEL_PATH) > 0:
+    try:
+        model = tf.keras.models.load_model(MODEL_PATH, custom_objects=custom_objects, compile=False)
+        print("✅ Custom model loaded successfully.")
+    except Exception as e:
+        print(f"❌ Error loading model with custom objects: {e}")
+        # Fallback: try without custom objects
+        try:
+            model = tf.keras.models.load_model(MODEL_PATH, compile=False)
+            print("✅ Model loaded successfully without custom objects (fallback).")
+        except Exception as e2:
+            print(f"❌ Fallback loading also failed: {e2}")
+            model = None
+else:
+    print("❌ Model file still missing after download attempts.")
     model = None
 
 IMG_SIZE = (224, 224)
