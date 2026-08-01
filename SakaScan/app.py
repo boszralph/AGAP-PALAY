@@ -128,6 +128,17 @@ BARANGAYS = [
 # ============================================================
 # CUSTOM MODEL LOADING
 # ============================================================
+import ast
+import os
+import gdown
+import tensorflow as tf
+from tensorflow.keras import mixed_precision
+from tensorflow.keras.layers import Dense, InputLayer
+
+# 1. Force float32 to avoid mixed‑precision warnings/errors
+mixed_precision.set_global_policy('float32')
+
+# 2. Custom Dense layer (unchanged, but kept for compatibility)
 class CustomDense(Dense):
     def __init__(self, units, activation=None, use_bias=True,
                  kernel_initializer='glorot_uniform',
@@ -146,38 +157,41 @@ class CustomDense(Dense):
                          bias_constraint=bias_constraint,
                          **kwargs)
 
+# 3. Fixed InputLayer that handles string batch_input_shape
 class CompatibleInputLayer(InputLayer):
     @classmethod
     def from_config(cls, config):
-        # Handle old 'batch_shape' key
-        if 'batch_shape' in config:
-            config['batch_input_shape'] = config.pop('batch_shape')
-        
-        # Convert 'batch_input_shape' from string to list/tuple if needed
-        if 'batch_input_shape' in config and isinstance(config['batch_input_shape'], str):
-            import ast
-            try:
-                config['batch_input_shape'] = ast.literal_eval(config['batch_input_shape'])
-            except:
-                # Fallback: split by commas and remove brackets
-                cleaned = config['batch_input_shape'].strip('[]()').split(',')
-                config['batch_input_shape'] = [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
-        
-        # Remove newer keys that cause errors
+        # Remove all keys that cause 'as_list' errors
+        config.pop('batch_shape', None)
         config.pop('optional', None)
         config.pop('sparse', None)
         config.pop('ragged', None)
+
+        # Safely convert batch_input_shape from string to list/tuple
+        if 'batch_input_shape' in config:
+            shape = config['batch_input_shape']
+            if isinstance(shape, str):
+                try:
+                    # ast.literal_eval handles "[None, 224, 224, 3]" correctly
+                    shape = ast.literal_eval(shape)
+                except (ValueError, SyntaxError):
+                    # Fallback parsing
+                    cleaned = shape.strip('[]()').replace('None', 'None').split(',')
+                    shape = [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
+                if not isinstance(shape, (list, tuple)):
+                    shape = list(shape)
+                config['batch_input_shape'] = shape
         return super().from_config(config)
 
 custom_objects = {
     'InputLayer': CompatibleInputLayer,
     'Dense': CustomDense,
-    'DTypePolicy': tf.keras.mixed_precision.Policy, 
 }
+
+# 4. Download model (keep your existing download logic)
 FILE_ID = "1B1X0YMYaKXSXIIahlA-tFSWjXut1qsql"
-MODEL_URL = f"https://drive.google.com/uc?id={FILE_ID}"
+MODEL_URL = f"https://drive.google.com/uc?id={FILE_ID}"   # FILE_ID defined earlier
 MODEL_PATH = 'model/rice_disease_models.h5'
-model = None
 
 def download_model():
     if not os.path.exists(MODEL_PATH):
@@ -186,15 +200,40 @@ def download_model():
         gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
         print("✅ Model downloaded successfully.")
 
-# *** Call download_model() BEFORE trying to load ***
 download_model()
 
+# 5. Load with primary custom objects, with fallback
+model = None
 try:
-    model = tf.keras.models.load_model(MODEL_PATH, custom_objects=custom_objects, compile=False)
+    model = tf.keras.models.load_model(MODEL_PATH,
+                                       custom_objects=custom_objects,
+                                       compile=False)
     print("✅ Custom model loaded successfully.")
 except Exception as e:
-    print(f"❌ Error loading model: {e}")
-    model = None
+    print(f"❌ First load attempt failed: {e}")
+    # Fallback: drop batch_input_shape entirely
+    class FallbackInputLayer(InputLayer):
+        @classmethod
+        def from_config(cls, config):
+            config.pop('batch_input_shape', None)
+            config.pop('batch_shape', None)
+            config.pop('optional', None)
+            config.pop('sparse', None)
+            config.pop('ragged', None)
+            return super().from_config(config)
+
+    fallback_objects = {
+        'InputLayer': FallbackInputLayer,
+        'Dense': CustomDense,
+    }
+    try:
+        model = tf.keras.models.load_model(MODEL_PATH,
+                                           custom_objects=fallback_objects,
+                                           compile=False)
+        print("✅ Model loaded with fallback (batch_input_shape removed).")
+    except Exception as e2:
+        print(f"❌ Fallback loading also failed: {e2}")
+        model = None
 
 IMG_SIZE = (224, 224)
 
