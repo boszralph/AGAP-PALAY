@@ -180,9 +180,21 @@ class CompatibleInputLayer(InputLayer):
         return super().from_config(config)
 
 
+class DTypePolicy:
+    """Dummy class to deserialize dtype policies used in the saved model."""
+    def __init__(self, name='float32'):
+        self.name = name
+
+    @classmethod
+    def from_config(cls, config):
+        # config is like {'name': 'mixed_float16'} – we ignore it and return 'float32'
+        return 'float32'  # return a string, which is acceptable for dtype
+
+
 custom_objects = {
     'InputLayer': CompatibleInputLayer,
     'Dense': CustomDense,
+    'DTypePolicy': DTypePolicy,
 }
 
 FILE_ID = "1B1X0YMYaKXSXIIahlA-tFSWjXut1qsql"
@@ -192,7 +204,6 @@ model = None
 
 
 def download_model():
-    """Download the model file if missing or empty, with retry."""
     os.makedirs("model", exist_ok=True)
     if os.path.exists(MODEL_PATH) and os.path.getsize(MODEL_PATH) > 0:
         print("✅ Model file already exists.")
@@ -200,7 +211,6 @@ def download_model():
 
     print("📥 Downloading model... (this may take a few minutes)")
     try:
-        # Use gdown with quiet=False for progress
         gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
         if os.path.exists(MODEL_PATH) and os.path.getsize(MODEL_PATH) > 0:
             print("✅ Model downloaded successfully.")
@@ -233,14 +243,8 @@ if os.path.exists(MODEL_PATH) and os.path.getsize(MODEL_PATH) > 0:
         model = tf.keras.models.load_model(MODEL_PATH, custom_objects=custom_objects, compile=False)
         print("✅ Custom model loaded successfully.")
     except Exception as e:
-        print(f"❌ Error loading model with custom objects: {e}")
-        # Fallback: try without custom objects
-        try:
-            model = tf.keras.models.load_model(MODEL_PATH, compile=False)
-            print("✅ Model loaded successfully without custom objects (fallback).")
-        except Exception as e2:
-            print(f"❌ Fallback loading also failed: {e2}")
-            model = None
+        print(f"❌ Error loading model: {e}")
+        model = None
 else:
     print("❌ Model file still missing after download attempts.")
     model = None
