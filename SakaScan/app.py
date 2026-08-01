@@ -18,6 +18,7 @@ pymysql.install_as_MySQLdb()
 import requests
 import numpy as np
 import tensorflow as tf
+from tensorflow.keras import mixed_precision
 from tensorflow.keras.layers import Dense, InputLayer
 from tensorflow.keras.applications.efficientnet_v2 import preprocess_input
 from PIL import Image
@@ -159,7 +160,7 @@ class CompatibleInputLayer(InputLayer):
 custom_objects = {
     'InputLayer': CompatibleInputLayer,
     'Dense': CustomDense,
-    'DTypePolicy': mixed_precision.Policy, 
+    'DTypePolicy': tf.keras.mixed_precision.Policy, 
 }
 FILE_ID = "1B1X0YMYaKXSXIIahlA-tFSWjXut1qsql"
 MODEL_URL = f"https://drive.google.com/uc?id={FILE_ID}"
