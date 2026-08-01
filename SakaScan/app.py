@@ -127,9 +127,15 @@ BARANGAYS = [
 # ============================================================
 # MODEL LOADING (SavedModel)
 # ============================================================
-# ----- IMPORTANT: Replace with your own Google Drive file ID -----
-# Upload saved_model.zip to Drive and get the file ID.
-FILE_ID = "1N0U1VWUMhjVO-XnksvjxT_iE8nns8aK0"
+import os
+import gdown
+import zipfile
+import requests
+import re
+import tensorflow as tf
+
+# ----- IMPORTANT: Replace with your correct file ID -----
+FILE_ID = "1N0U1VWUMhjVO-XnksvjxT_iE8nns8aK0"   # <-- verify this ID
 ZIP_PATH = "model/saved_model.zip"
 MODEL_DIR = "model/saved_model"
 model = None
@@ -142,23 +148,51 @@ def download_and_extract():
 
     print("📥 Downloading SavedModel zip...")
     url = f"https://drive.google.com/uc?id={FILE_ID}"
+    
+    # Try gdown with fuzzy
     try:
-        # Use gdown with fuzzy=True to handle confirmations
         gdown.download(url, ZIP_PATH, quiet=False, fuzzy=True)
-        if not os.path.exists(ZIP_PATH) or os.path.getsize(ZIP_PATH) == 0:
-            print("❌ Download failed – file empty.")
-            return False
+    except Exception as e:
+        print(f"gdown error: {e}")
 
+    # If file is too small, delete and retry with requests
+    if os.path.exists(ZIP_PATH) and os.path.getsize(ZIP_PATH) < 1024 * 1024:
+        print("⚠️ Downloaded file too small – retrying with requests...")
+        os.remove(ZIP_PATH)
+        try:
+            session = requests.Session()
+            resp = session.get(url, stream=True)
+            if 'confirm' in resp.url:
+                confirm_token = re.search(r'confirm=([^&]+)', resp.url)
+                if confirm_token:
+                    confirm = confirm_token.group(1)
+                    new_url = f"https://drive.google.com/uc?id={FILE_ID}&confirm={confirm}"
+                    resp = session.get(new_url, stream=True)
+            with open(ZIP_PATH, 'wb') as f:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+            print("✅ Download completed via requests.")
+        except Exception as e:
+            print(f"❌ Alternative download failed: {e}")
+
+    # Final size check
+    if not os.path.exists(ZIP_PATH) or os.path.getsize(ZIP_PATH) < 1024 * 1024:
+        print("❌ Download failed – file still too small or missing.")
+        return False
+
+    # Extract
+    try:
         with zipfile.ZipFile(ZIP_PATH, 'r') as zip_ref:
             zip_ref.extractall("model/")
         os.remove(ZIP_PATH)
         print("✅ SavedModel extracted.")
         return True
-    except Exception as e:
-        print(f"❌ Download/extract error: {e}")
+    except zipfile.BadZipFile:
+        print("❌ Downloaded file is not a valid zip.")
         return False
 
-# Attempt to download and load
+# Run download and load
 if download_and_extract():
     try:
         model = tf.saved_model.load(MODEL_DIR)
