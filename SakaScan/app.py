@@ -126,8 +126,10 @@ BARANGAYS = [
 ]
 
 # ============================================================
-# CUSTOM MODEL LOADING (FINAL FIXED)
+# CUSTOM MODEL LOADING (FULLY FIXED)
 # ============================================================
+
+import ast
 
 class CustomDense(Dense):
     def __init__(self, units, activation=None, use_bias=True,
@@ -156,32 +158,40 @@ class CustomDense(Dense):
 class CompatibleInputLayer(InputLayer):
     @classmethod
     def from_config(cls, config):
-        if 'batch_shape' in config:
-            config['batch_input_shape'] = config.pop('batch_shape')
-        if 'batch_input_shape' in config:
-            shape = config['batch_input_shape']
-            if isinstance(shape, str):
-                import ast
-                try:
-                    parsed = ast.literal_eval(shape)
-                    if isinstance(parsed, (tuple, list)):
-                        config['batch_input_shape'] = parsed
-                    else:
+        # Convert any shape-like string to tuple
+        for key in ['batch_input_shape', 'batch_shape', 'shape']:
+            if key in config:
+                shape = config[key]
+                if isinstance(shape, str):
+                    try:
+                        parsed = ast.literal_eval(shape)
+                        if isinstance(parsed, (tuple, list)):
+                            config[key] = parsed
+                        else:
+                            cleaned = shape.strip('[]()').split(',')
+                            config[key] = [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
+                    except:
                         cleaned = shape.strip('[]()').split(',')
-                        config['batch_input_shape'] = [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
-                except:
-                    cleaned = shape.strip('[]()').split(',')
-                    config['batch_input_shape'] = [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
-            if isinstance(config['batch_input_shape'], list):
-                config['batch_input_shape'] = tuple(config['batch_input_shape'])
-        config.pop('optional', None)
-        config.pop('sparse', None)
-        config.pop('ragged', None)
+                        config[key] = [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
+                if isinstance(config[key], list):
+                    config[key] = tuple(config[key])
+        # Remove unsupported keys
+        for k in ['optional', 'sparse', 'ragged']:
+            config.pop(k, None)
+        return super().from_config(config)
+
+
+class CompatibleRescaling(tf.keras.layers.Rescaling):
+    @classmethod
+    def from_config(cls, config):
+        # Override dtype to 'float32' to avoid DTypePolicy issues
+        if 'dtype' in config:
+            config['dtype'] = 'float32'
         return super().from_config(config)
 
 
 class DTypePolicy:
-    """Dummy DTypePolicy that provides required attributes for deserialization."""
+    """Dummy DTypePolicy that provides required attributes."""
     def __init__(self, name='float32'):
         self.name = name
         self.compute_dtype = name
@@ -189,12 +199,12 @@ class DTypePolicy:
 
     @classmethod
     def from_config(cls, config):
-        # Ignore saved dtype and use float32
         return cls(name='float32')
 
 
 custom_objects = {
     'InputLayer': CompatibleInputLayer,
+    'Rescaling': CompatibleRescaling,
     'Dense': CustomDense,
     'DTypePolicy': DTypePolicy,
 }
