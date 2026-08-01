@@ -124,21 +124,11 @@ BARANGAYS = [
     'Telbang', 'Victoria'
 ]
 
-# ============================================================
-# MODEL LOADING (SavedModel)
-# ============================================================
 import os
-import gdown
 import zipfile
 import requests
 import re
-import tensorflow as tf
-
-# ----- IMPORTANT: Replace with your correct file ID -----
-FILE_ID = "1N0U1VWUMhjVO-XnksvjxT_iE8nns8aK0"   # <-- verify this ID
-ZIP_PATH = "model/saved_model.zip"
-MODEL_DIR = "model/saved_model"
-model = None
+import time
 
 def download_and_extract():
     os.makedirs("model", exist_ok=True)
@@ -147,38 +137,67 @@ def download_and_extract():
         return True
 
     print("📥 Downloading SavedModel zip...")
-    url = f"https://drive.google.com/uc?id={FILE_ID}"
+    url = f"https://drive.google.com/uc?id={FILE_ID}&export=download"
+    session = requests.Session()
     
-    # Try gdown with fuzzy
     try:
-        gdown.download(url, ZIP_PATH, quiet=False, fuzzy=True)
+        # First request to get the confirmation token if needed
+        resp = session.get(url, stream=True)
+        if 'confirm' in resp.url:
+            # Extract confirm token
+            confirm_token = re.search(r'confirm=([^&]+)', resp.url)
+            if confirm_token:
+                confirm = confirm_token.group(1)
+                url = f"https://drive.google.com/uc?id={FILE_ID}&export=download&confirm={confirm}"
+                resp = session.get(url, stream=True)
+        
+        # If still a virus scan warning, try the direct download with a cookie
+        if 'Virus scan warning' in resp.text or 'Quarantine' in resp.text:
+            # Use the download button URL
+            download_url = None
+            for line in resp.text.split('\n'):
+                if 'download' in line and 'uc?id' in line:
+                    match = re.search(r'href="([^"]+)"', line)
+                    if match:
+                        download_url = match.group(1)
+                        break
+            if download_url:
+                resp = session.get(download_url, stream=True)
+            else:
+                # Fallback: try with `&confirm=t`
+                url = f"https://drive.google.com/uc?id={FILE_ID}&export=download&confirm=t"
+                resp = session.get(url, stream=True)
+        
+        # Check if we got binary data (Content-Type should not be text/html)
+        content_type = resp.headers.get('Content-Type', '')
+        if 'text/html' in content_type:
+            print("❌ Got HTML page instead of binary – file may not be accessible.")
+            return False
+        
+        # Write the file with progress
+        total_size = int(resp.headers.get('content-length', 0))
+        if total_size == 0:
+            print("❌ Content-Length is zero – file unavailable.")
+            return False
+        
+        with open(ZIP_PATH, 'wb') as f:
+            downloaded = 0
+            for chunk in resp.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size:
+                        percent = (downloaded / total_size) * 100
+                        print(f"\rProgress: {percent:.1f}%", end='')
+        print("\n✅ Download completed via requests.")
+    
     except Exception as e:
-        print(f"gdown error: {e}")
+        print(f"❌ Download error: {e}")
+        return False
 
-    # If file is too small, delete and retry with requests
-    if os.path.exists(ZIP_PATH) and os.path.getsize(ZIP_PATH) < 1024 * 1024:
-        print("⚠️ Downloaded file too small – retrying with requests...")
-        os.remove(ZIP_PATH)
-        try:
-            session = requests.Session()
-            resp = session.get(url, stream=True)
-            if 'confirm' in resp.url:
-                confirm_token = re.search(r'confirm=([^&]+)', resp.url)
-                if confirm_token:
-                    confirm = confirm_token.group(1)
-                    new_url = f"https://drive.google.com/uc?id={FILE_ID}&confirm={confirm}"
-                    resp = session.get(new_url, stream=True)
-            with open(ZIP_PATH, 'wb') as f:
-                for chunk in resp.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-            print("✅ Download completed via requests.")
-        except Exception as e:
-            print(f"❌ Alternative download failed: {e}")
-
-    # Final size check
-    if not os.path.exists(ZIP_PATH) or os.path.getsize(ZIP_PATH) < 1024 * 1024:
-        print("❌ Download failed – file still too small or missing.")
+    # Final size check (should be ~200+ MB)
+    if not os.path.exists(ZIP_PATH) or os.path.getsize(ZIP_PATH) < 100 * 1024 * 1024:
+        print("❌ Downloaded file is too small – likely an error page.")
         return False
 
     # Extract
@@ -191,18 +210,6 @@ def download_and_extract():
     except zipfile.BadZipFile:
         print("❌ Downloaded file is not a valid zip.")
         return False
-
-# Run download and load
-if download_and_extract():
-    try:
-        model = tf.saved_model.load(MODEL_DIR)
-        print("✅ SavedModel loaded successfully.")
-    except Exception as e:
-        print(f"❌ Error loading SavedModel: {e}")
-        model = None
-else:
-    print("❌ Could not obtain SavedModel.")
-    model = None
 
 IMG_SIZE = (224, 224)
 
