@@ -149,12 +149,24 @@ class CustomDense(Dense):
 class CompatibleInputLayer(InputLayer):
     @classmethod
     def from_config(cls, config):
-        # Convert old 'batch_shape' to 'batch_input_shape'
+        # Handle old 'batch_shape' key
         if 'batch_shape' in config:
             config['batch_input_shape'] = config.pop('batch_shape')
-        # Remove keys that are not valid for InputLayer (newer TF versions)
-        for key in ['optional', 'sparse', 'ragged']:
-            config.pop(key, None)
+        
+        # Convert 'batch_input_shape' from string to list/tuple if needed
+        if 'batch_input_shape' in config and isinstance(config['batch_input_shape'], str):
+            import ast
+            try:
+                config['batch_input_shape'] = ast.literal_eval(config['batch_input_shape'])
+            except:
+                # Fallback: split by commas and remove brackets
+                cleaned = config['batch_input_shape'].strip('[]()').split(',')
+                config['batch_input_shape'] = [int(x) if x.strip().isdigit() else None for x in cleaned if x.strip()]
+        
+        # Remove newer keys that cause errors
+        config.pop('optional', None)
+        config.pop('sparse', None)
+        config.pop('ragged', None)
         return super().from_config(config)
 
 custom_objects = {
