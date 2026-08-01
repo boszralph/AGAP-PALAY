@@ -129,15 +129,13 @@ BARANGAYS = [
 # ============================================================
 # ----- IMPORTANT: Replace with your own Google Drive file ID -----
 # Upload saved_model.zip to Drive and get the file ID.
-FILE_ID = "https://drive.google.com/file/d/1N0U1VWUMhjVO-XnksvjxT_iE8nns8aK0/view?usp=drive_link"   # <-- change this
+FILE_ID = "1N0U1VWUMhjVO-XnksvjxT_iE8nns8aK0"
 ZIP_PATH = "model/saved_model.zip"
 MODEL_DIR = "model/saved_model"
 model = None
 
 def download_and_extract():
-    """Download the SavedModel zip and extract it."""
     os.makedirs("model", exist_ok=True)
-    # If the folder already exists and contains files, assume it's ready.
     if os.path.exists(MODEL_DIR) and os.listdir(MODEL_DIR):
         print("✅ SavedModel already exists.")
         return True
@@ -145,7 +143,8 @@ def download_and_extract():
     print("📥 Downloading SavedModel zip...")
     url = f"https://drive.google.com/uc?id={FILE_ID}"
     try:
-        gdown.download(url, ZIP_PATH, quiet=False)
+        # Use gdown with fuzzy=True to handle confirmations
+        gdown.download(url, ZIP_PATH, quiet=False, fuzzy=True)
         if not os.path.exists(ZIP_PATH) or os.path.getsize(ZIP_PATH) == 0:
             print("❌ Download failed – file empty.")
             return False
